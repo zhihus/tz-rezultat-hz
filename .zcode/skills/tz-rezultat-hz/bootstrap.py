@@ -56,9 +56,17 @@ tz-1c-style, grilling) — ОСНОВНОЙ и РЕКОМЕНДУЕМЫЙ сце
            неизвестен (манифест прежнего формата без сведений об
            установке): работа возможна, но аналитика неполноценна.
 
-Коды возврата: 0 — готово/валиден; 1 — ошибка; 2 — чужой живой замок;
-3 — устаревший замок (удалить вручную); 4 — нужно подтверждение режима
-установки (пользователь ещё не выбрал; ничего не скачано).
+ПЛАТФОРМЫ (ВРЕМЕННО): поддерживается ТОЛЬКО Windows (win-x64). На Linux и
+других платформах скрипт завершается с [НЕ ПОДДЕРЖИВАЕТСЯ] ДО любых
+изменений: ни загрузок, ни создания каталогов рантайма, ни записи
+манифеста. Ограничение действует и при прямом запуске bootstrap.py
+(гейт в main() до _resolve_root). Linux-код сохранён для последующей
+доработки (см. bootstrap.sh — точка входа для Linux, временно отключена).
+
+Коды возврата: 0 — готово/валиден; 1 — ошибка (в т.ч. неподдерживаемая
+платформа); 2 — чужой живой замок; 3 — устаревший замок (удалить вручную);
+4 — нужно подтверждение режима установки (пользователь ещё не выбрал;
+ничего не скачано).
 """
 
 import argparse
@@ -177,6 +185,15 @@ GR_RAW_BASE = ("https://raw.githubusercontent.com/mattpocock/skills/"
 
 MANIFEST_SCHEMA = 2
 
+# ПОДДЕРЖИВАЕМЫЕ ПЛАТФОРМЫ (ВРЕМЕННО): только Windows. Linux-поддержка и её
+# код (PINS['linux-x64'], изоляция venv, bootstrap.sh) СОХРАНЕНЫ для
+# последующей доработки, но исполнение заблокировано: гейт в main() срабатывает
+# ДО любых изменений файлов (в т.ч. до _resolve_root, который пишет пробный
+# файл), поэтому ограничение нельзя обойти прямым запуском bootstrap.py.
+_SUPPORTED_TARGETS = ("win-x64",)
+_PLATFORM_NOTICE = ("установка временно поддерживается ТОЛЬКО на Windows; "
+                    "поддержка Linux будет добавлена позднее")
+
 # Перечень компонентов — единый текст (печатается на первом запуске).
 # Один источник для bootstrap.py и (до появления Python) bootstrap.ps1 /
 # bootstrap.sh: файл читается явным UTF-8, поэтому русский текст не зависит
@@ -206,7 +223,11 @@ def _sha256_file(path):
 
 
 def _target():
-    """Платформенный таргет: win-x64 | linux-x64 | None (неподдерживается)."""
+    """Платформенный таргет: win-x64 | linux-x64 | None.
+
+    linux-x64 по-прежнему ОПОЗНАЁТСЯ (код Linux сохранён для будущей
+    доработки), но временно не входит в _SUPPORTED_TARGETS — исполнение
+    блокирует гейт в main()."""
     sysname, machine = platform.system(), platform.machine()
     if sysname == "Windows" and machine in ("AMD64", "x86_64"):
         return "win-x64"
@@ -985,7 +1006,7 @@ def main():
     ap.add_argument("--check", action="store_true", help="только проверить, не скачивать")
     ap.add_argument("--assume-python", action="store_true",
                     help="интерпретатор уже распакован/изолирован "
-                         "(сделали bootstrap.ps1/.sh); пропускаем download/extract/isolate")
+                         "(сделал bootstrap.ps1); пропускаем download/extract/isolate")
     args = ap.parse_args()
     if args.full and args.no_grilling:
         print("[FAIL] --full и --no-grilling взаимоисключающие")
@@ -993,9 +1014,17 @@ def main():
     mode = "full" if args.full else ("no-grilling" if args.no_grilling else None)
 
     target = _target()
-    if target is None:
-        print("[FAIL] неподдерживаемая платформа: %s/%s (только win-x64, linux-x64)"
-              % (platform.system(), platform.machine()))
+    # ГЕЙТ ПЛАТФОРМЫ — раньше любых действий: он стоит ДО _resolve_root
+    # (та пишет пробный файл), до мытья каталогов, загрузок и манифеста.
+    if target not in _SUPPORTED_TARGETS:
+        print("[НЕ ПОДДЕРЖИВАЕТСЯ] %s" % _PLATFORM_NOTICE)
+        print("[FAIL] платформа: %s/%s (таргет %s; поддерживается: %s)"
+              % (platform.system(), platform.machine(), target or "нет",
+                 ", ".join(_SUPPORTED_TARGETS)))
+        print("[ОСТАНОВ] до любых изменений: ничего не скачано, каталоги рантайма "
+              "и манифест не тронуты")
+        print("[ДЕЙСТВИЕ] Windows: powershell -ExecutionPolicy Bypass "
+              "-File bootstrap.ps1 -Full")
         return 1
     root = _resolve_root(args.root)
     print("== BOOTSTRAP tz-rezultat-hz ==")
@@ -1044,7 +1073,7 @@ def main():
         print_plan()
         print("[ОЖИДАНИЕ] подтверждение пользователя: повторите запуск в режиме "
               "полного комплекта — bootstrap.ps1 -Full (Windows) / "
-              "bash bootstrap.sh --full (Linux) / bootstrap.py --full")
+              "bootstrap.py --full")
         return 4
 
     ok, reason = acquire_lock(root)

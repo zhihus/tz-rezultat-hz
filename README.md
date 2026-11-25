@@ -6,6 +6,13 @@ stage 2 fills the template with business-ТЗ text from a retouch
 description. The skill lives in
 [`.zcode/skills/tz-rezultat-hz/`](.zcode/skills/tz-rezultat-hz/SKILL.md).
 
+> **Platform support (temporary): Windows only.** This release installs and
+> runs on Windows (`win-x64`). Linux is **not supported yet**: `bootstrap.sh`
+> and a direct `bootstrap.py` run stop immediately with a notice, before
+> anything is downloaded, before any directory is created and before the
+> runtime is touched. The Linux code is kept in the tree and will be enabled
+> in a later release.
+
 ## Install
 
 A skill is just a folder. Copy `.zcode/skills/tz-rezultat-hz/` into your
@@ -16,15 +23,14 @@ agent's skills directory, for example:
 ```
 
 No Python ships with the repository. On first use the agent runs
-`bootstrap.ps1` (Windows) or `bootstrap.sh` (Linux) **without a mode flag**:
+`bootstrap.ps1` (Windows) **without a mode flag**:
 it prints the list of components of the **full set** — the main and
 recommended scenario — with each component's purpose and the consequence of
 its absence (see `components.ru.md`), and exits **without downloading
 anything**. On your confirmation the same script is run in the full mode:
 
 ```
-bootstrap.ps1 -Full          # Windows
-bash bootstrap.sh --full     # Linux
+bootstrap.ps1 -Full          # Windows (the only supported platform for now)
 ```
 
 It then downloads, verifies against fixed pins (upstream commits + content
@@ -42,7 +48,7 @@ verifies the environment and deploys it.
 **Declining `grilling` means incomplete analytics.** The Step 2 self-grill
 («прожарка») is then unavailable and unverified gaps pass into the ТЗ — this
 is not normal work. Installing without it is possible only on an explicit
-refusal (`bootstrap.ps1 -NoGrilling` / `bash bootstrap.sh --no-grilling`) and
+refusal (`bootstrap.ps1 -NoGrilling`) and
 is not offered as an equal alternative.
 
 Later checks keep the distinction (they are not interchangeable): a set
@@ -61,7 +67,9 @@ the ТЗ template and fills it. Entry point and step-by-step protocol —
 ## Contents
 
 - `.zcode/skills/tz-rezultat-hz/SKILL.md` — the skill's route and rules.
-- `bootstrap.ps1` / `bootstrap.sh` / `bootstrap.py` — runtime install.
+- `bootstrap.ps1` / `bootstrap.py` — runtime install (Windows only for now).
+  `bootstrap.sh` is the future Linux entry point; it is present in the tree
+  but temporarily disabled — it exits with a notice and changes nothing.
 - `components.ru.md` — the component list printed on first run.
 - `scripts/` — the pipeline (extraction, build, gates, render).
 - `references/` — document model and method.

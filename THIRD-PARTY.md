@@ -2,8 +2,9 @@
 
 This repository is licensed under **MIT** (see [`LICENSE`](LICENSE)).
 It uses the third-party components below. Nothing here is vendored: the
-runtime dependencies are installed by the skill's `bootstrap.ps1` /
-`bootstrap.sh` on first use and are **not** redistributed by this
+runtime dependencies are installed by the skill's `bootstrap.ps1` on first
+use (`bootstrap.sh` is the future Linux entry point, temporarily disabled —
+Windows only for now) and are **not** redistributed by this
 repository, so their licenses do not apply to the repository's own code.
 
 ## Runtime dependencies (installed at first use, not redistributed)
