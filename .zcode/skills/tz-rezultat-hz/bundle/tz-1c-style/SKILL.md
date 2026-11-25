@@ -115,7 +115,7 @@ description: Пиши ТЗ на доработки 1С в стиле автор�
 | Structured List | Высокое | Перечисления реквизитов, условий распределения, составов документов |
 | LATCH (иерархия) | Среднее | Организация разделов: по ходу работы пользователя, не по алфавиту |
 
-Описания формул: `references/writing-formulas.md` в пакете `perfectly-replicate-writing-skills-ru`.
+Описания формул — в пакете `perfectly-replicate-writing-skills-ru` (в поставку не входит).
 
 ## Disallowed List
 
@@ -142,7 +142,7 @@ description: Пиши ТЗ на доработки 1С в стиле автор�
 2. Structure задаётся источником (spec/шаблон конвейера) — скилл отвечает только за речь, не за состав разделов.
 3. Форматные заголовки таблиц и интро брать дословно из Format Adaptation.
 4. Перед сдачей — проверка Disallowed List.
-5. Если задан spec (Mode C) — см. `references/openspec-mapping.md` пакета `perfectly-replicate-writing-skills-ru`.
+5. Если задан spec (Mode C) — отображение spec→структура см. в пакете `perfectly-replicate-writing-skills-ru` (в поставку не входит).
 
 ## Corpus Info
 
