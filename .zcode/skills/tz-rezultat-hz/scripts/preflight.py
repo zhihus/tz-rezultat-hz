@@ -58,7 +58,7 @@ def check_harness(harness):
 def check_runtime():
     """Активный рантайм — из манифеста Bootstrap. Preflight НЕ ставит
     Python/библиотеки сам: при отсутствии валидного рантайма указывает
-    запустить Bootstrap (bootstrap.ps1; поддерживается ТОЛЬКО Windows)."""
+    запустить Bootstrap (bootstrap.ps1 на Windows / bootstrap.sh на Linux)."""
     sys.path.insert(0, _SKILL_DIR)
     import bootstrap
     root = bootstrap._resolve_root()
@@ -68,7 +68,7 @@ def check_runtime():
         _line(_FAIL, "runtime", "валидный рантайм отсутствует (нет манифеста/интерпретатора)")
         _line("ДЕЙСТВИЕ", "",
               "агент: запустите Bootstrap в режиме полного комплекта — "
-              "bootstrap.ps1 -Full (Windows; Linux временно не поддерживается)")
+              "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full (Linux)")
         return
     # Импорты проверяем в АКТИВНОМ интерпретаторе (не в host-питоне).
     mods = "import docx, lxml, pymupdf"
@@ -178,7 +178,7 @@ def check_format_agent(work):
         _line(_FAIL, "format-agent", "набор в рантайме не готов (нет в манифесте/не сверен)")
         _line("ДЕЙСТВИЕ", "",
               "агент: запустите Bootstrap в режиме полного комплекта — "
-              "bootstrap.ps1 -Full (Windows; Linux временно не поддерживается)")
+              "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full (Linux)")
         return
     try:
         shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__"))
@@ -381,7 +381,7 @@ def _check_grilling(found, deploy_base):
                              "в рантайме не готов (%s)" % msg))
             out.append(_line("ДЕЙСТВИЕ", "",
                              "агент: восстановить полный комплект — "
-                             "bootstrap.ps1 -Full (Windows; Linux временно не поддерживается)"))
+                             "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full (Linux)"))
         return out
     if sev == "ok":
         # рантайм полного комплекта: развернуть компонент в рабочую папку
@@ -404,13 +404,13 @@ def _check_grilling(found, deploy_base):
     if sev == "fail":
         out.append(_line("ДЕЙСТВИЕ", "",
                          "агент: восстановить компонент полного комплекта — "
-                         "bootstrap.ps1 -Full (Windows; Linux временно не поддерживается)"))
+                         "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full (Linux)"))
     else:
         out.append(_line("ДЕЙСТВИЕ", "",
                          "агент: доложить пользователю, что аналитика "
                          "неполноценна (самопроверка Шага 2 недоступна); "
-                         "полный комплект — bootstrap.ps1 -Full "
-                         "(Windows; Linux временно не поддерживается)"))
+                         "полный комплект — bootstrap.ps1 -Full (Windows) / "
+                         "bootstrap.sh --full (Linux)"))
     return out
 
 

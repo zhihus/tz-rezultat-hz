@@ -33,12 +33,13 @@ confirmation of the result are needed.
 - The quality of the result depends directly on the samples, descriptions and
   answers you provide — thin input gives a thin specification.
 
-> **Platform support (temporary): Windows only.** This release installs and
-> runs on Windows (`win-x64`). Linux is **not supported yet**: `bootstrap.sh`
-> and a direct `bootstrap.py` run stop immediately with a notice, before
-> anything is downloaded, before any directory is created and before the
-> runtime is touched. The Linux code is kept in the tree and will be enabled
-> in a later release.
+> **Platform support: Windows and Linux.** This release installs and runs on
+> Windows (`win-x64`) and Linux (`linux-x64`). Both are first-class: the same
+> pinned runtime, the same full set, and the same transactional install
+> (candidate dir → validate → swap; the previous working runtime is moved to
+> `.staging/previous-*`, never deleted, and restored on any failure). Other
+> platforms (arm64, macOS) are not supported: the platform gate in
+> `bootstrap.py` stops before anything is downloaded or changed.
 
 ## Install
 
@@ -49,15 +50,17 @@ agent's skills directory, for example:
 ~/.agents/skills/tz-rezultat-hz/
 ```
 
-No Python ships with the repository. On first use the agent runs
-`bootstrap.ps1` (Windows) **without a mode flag**:
+No Python ships with the repository. On first use the agent runs the platform
+entry point **without a mode flag** — `bootstrap.ps1` on Windows or
+`bash bootstrap.sh` on Linux:
 it prints the list of components of the **full set** — the main and
 recommended scenario — with each component's purpose and the consequence of
 its absence (see `components.ru.md`), and exits **without downloading
 anything**. On your confirmation the same script is run in the full mode:
 
 ```
-bootstrap.ps1 -Full          # Windows (the only supported platform for now)
+bootstrap.ps1 -Full          # Windows
+bash bootstrap.sh --full     # Linux
 ```
 
 It then downloads, verifies against fixed pins (upstream commits + content
@@ -95,9 +98,10 @@ the ТЗ template and fills it. Entry point and step-by-step protocol —
 
 - `README.md` / [`README.ru.md`](README.ru.md) — this description (EN / RU).
 - `.zcode/skills/tz-rezultat-hz/SKILL.md` — the skill's route and rules.
-- `bootstrap.ps1` / `bootstrap.py` — runtime install (Windows only for now).
-  `bootstrap.sh` is the future Linux entry point; it is present in the tree
-  but temporarily disabled — it exits with a notice and changes nothing.
+- `bootstrap.ps1` / `bootstrap.sh` / `bootstrap.py` — runtime install
+  (Windows and Linux). `bootstrap.ps1` is the Windows entry point,
+  `bootstrap.sh` the Linux entry point; both delegate to `bootstrap.py`
+  and build transactionally (candidate dir → validate → swap).
 - `components.ru.md` — the component list printed on first run.
 - `scripts/` — the pipeline (extraction, build, gates, render).
 - `references/` — document model and method.

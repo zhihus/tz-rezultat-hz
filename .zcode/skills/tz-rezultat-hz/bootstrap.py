@@ -56,12 +56,13 @@ tz-1c-style, grilling) — ОСНОВНОЙ и РЕКОМЕНДУЕМЫЙ сце
            неизвестен (манифест прежнего формата без сведений об
            установке): работа возможна, но аналитика неполноценна.
 
-ПЛАТФОРМЫ (ВРЕМЕННО): поддерживается ТОЛЬКО Windows (win-x64). На Linux и
-других платформах скрипт завершается с [НЕ ПОДДЕРЖИВАЕТСЯ] ДО любых
-изменений: ни загрузок, ни создания каталогов рантайма, ни записи
-манифеста. Ограничение действует и при прямом запуске bootstrap.py
-(гейт в main() до _resolve_root). Linux-код сохранён для последующей
-доработки (см. bootstrap.sh — точка входа для Linux, временно отключена).
+ПЛАТФОРМЫ: поддерживаются Windows (win-x64) и Linux (linux-x64) — обе
+полноправные. На других платформах (arm64, macOS) скрипт завершается с
+[НЕ ПОДДЕРЖИВАЕТСЯ] ДО любых изменений: ни загрузок, ни создания каталогов
+рантайма, ни записи манифеста. Ограничение действует и при прямом запуске
+bootstrap.py (гейт в main() до _resolve_root). Точки входа: bootstrap.ps1
+(Windows) и bootstrap.sh (Linux); обе собирают транзакционно (каталог-
+кандидат → валидация → замещение, прежний рабочий каталог в .staging).
 
 Коды возврата: 0 — готово/валиден; 1 — ошибка (в т.ч. неподдерживаемая
 платформа); 2 — чужой живой замок; 3 — устаревший замок (удалить вручную);
@@ -185,14 +186,13 @@ GR_RAW_BASE = ("https://raw.githubusercontent.com/mattpocock/skills/"
 
 MANIFEST_SCHEMA = 2
 
-# ПОДДЕРЖИВАЕМЫЕ ПЛАТФОРМЫ (ВРЕМЕННО): только Windows. Linux-поддержка и её
-# код (PINS['linux-x64'], изоляция venv, bootstrap.sh) СОХРАНЕНЫ для
-# последующей доработки, но исполнение заблокировано: гейт в main() срабатывает
-# ДО любых изменений файлов (в т.ч. до _resolve_root, который пишет пробный
-# файл), поэтому ограничение нельзя обойти прямым запуском bootstrap.py.
-_SUPPORTED_TARGETS = ("win-x64",)
-_PLATFORM_NOTICE = ("установка временно поддерживается ТОЛЬКО на Windows; "
-                    "поддержка Linux будет добавлена позднее")
+# ПОДДЕРЖИВАЕМЫЕ ПЛАТФОРМЫ: Windows и Linux (обе — x64). Гейт в main()
+# срабатывает ДО любых изменений файлов (в т.ч. до _resolve_root, который
+# пишет пробный файл), поэтому неподдерживаемую платформу нельзя обойти
+# прямым запуском bootstrap.py.
+_SUPPORTED_TARGETS = ("win-x64", "linux-x64")
+_PLATFORM_NOTICE = ("поддерживаются Windows (win-x64) и Linux (linux-x64); "
+                    "другие платформы не поддерживаются")
 
 # Перечень компонентов — единый текст (печатается на первом запуске).
 # Один источник для bootstrap.py и (до появления Python) bootstrap.ps1 /
@@ -225,9 +225,8 @@ def _sha256_file(path):
 def _target():
     """Платформенный таргет: win-x64 | linux-x64 | None.
 
-    linux-x64 по-прежнему ОПОЗНАЁТСЯ (код Linux сохранён для будущей
-    доработки), но временно не входит в _SUPPORTED_TARGETS — исполнение
-    блокирует гейт в main()."""
+    Оба таргета поддерживаются (входят в _SUPPORTED_TARGETS); гейт в main()
+    останавливает только неподдерживаемые платформы."""
     sysname, machine = platform.system(), platform.machine()
     if sysname == "Windows" and machine in ("AMD64", "x86_64"):
         return "win-x64"
@@ -715,12 +714,16 @@ def _py_exe(ver_dir, target):
 
 
 def _venv_python(ver_dir):
-    """Linux: venv создаётся в конечном версионном каталоге (не переносим)."""
+    """Linux: venv в версионном каталоге (кандидате при сборке; после
+    замещения — в конечном каталоге, где venv ремонтируется — см.
+    _repair_venv и _swap_candidate)."""
     return os.path.join(ver_dir, "venv", "bin", "python3")
 
 
 def _isolate(win, py_base, target, ver_dir):
-    """Изоляция: Windows — python311._pth + DLL pywin32; Linux — venv."""
+    """Изоляция: Windows — python311._pth + DLL pywin32; Linux — venv в
+    версионном каталоге (кандидате при сборке; после замещения venv
+    ремонтируется — см. _repair_venv)."""
     if target == "win-x64":
         pth = os.path.join(py_base, "python311._pth")
         lines = ["Lib", "DLLs", "Lib\\site-packages",
@@ -768,13 +771,11 @@ def _candidate_dir(root):
 
 
 def _build_dir(root, target):
-    """Где идёт сборка. Windows — каталог-кандидат (есть что откатить);
-    Linux — конечный каталог: venv создаётся только по конечному пути и
-    НЕ переносится (см. _isolate), поэтому сетевые компоненты там
-    приобретаются ДО разрушительных шагов."""
-    if target == "win-x64":
-        return _candidate_dir(root)
-    return os.path.join(root, PY_DIRNAME)
+    """Где идёт сборка: каталог-кандидат на обеих платформах. Рабочий
+    версионный каталог не трогается до успешной валидации и замещения
+    (_swap_candidate). Linux: venv создаётся в кандидате, а после переноса
+    в конечный каталог ремонтируется (_repair_venv) — см. _swap_candidate."""
+    return _candidate_dir(root)
 
 
 def _quarantine(root, bdir, ver_dir):
@@ -791,12 +792,36 @@ def _quarantine(root, bdir, ver_dir):
         pass
 
 
-def _swap_candidate(root, target):
-    """Windows: заместить рабочий каталог кандидатом. Прежний рабочий
-    каталог ПЕРЕНОСИТСЯ в .staging/previous-* (не удаляется). При сбое
-    замещения — откат. Возвращает путь прежнего каталога (или None)."""
-    if target != "win-x64":
-        return None
+def _repair_venv(ver_dir):
+    """Linux: после переноса каталога-кандидата в конечный venv содержит
+    абсолютные пути (pyvenv.cfg home, bin/python* → base), которые стали
+    недействительны. Сломанные симлинки bin/python* мешают `venv --upgrade`
+    (он не может последовать за ними и прерывается), поэтому сначала
+    удаляем их, а затем пересоздаём venv-структуру через
+    `python -m venv --upgrade` от КОНЕЧНОГО base-интерпретатора: site-packages
+    сохраняются, пути и симлинки обновляются. Windows — нет venv, ничего не
+    делаем."""
+    base_py = os.path.join(ver_dir, "python", "bin", "python3")
+    venv_dir = os.path.join(ver_dir, "venv")
+    if os.path.isfile(base_py) and os.path.isdir(venv_dir):
+        vbin = os.path.join(venv_dir, "bin")
+        if os.path.isdir(vbin):
+            for name in os.listdir(vbin):
+                p = os.path.join(vbin, name)
+                # только симлинки python* (python, python3, python3.11) —
+                # они сломаны переносом; скрипты (pip, activate) не трогаем
+                if name.startswith("python") and os.path.islink(p):
+                    os.remove(p)
+        subprocess.run([base_py, "-m", "venv", "--upgrade", venv_dir], check=True)
+
+
+def _swap_candidate(root, target, mode):
+    """Заместить рабочий каталог кандидатом (Windows и Linux). Прежний рабочий
+    каталог ПЕРЕНОСИТСЯ в .staging/previous-* (не удаляется). Linux: после
+    переноса ремонтируется venv (абсолютные пути) и кандидат пере-валидируется
+    в конечном каталоге. При любом сбое — откат: сломанный кандидат удаляется,
+    прежний рабочий каталог возвращается на место. Возвращает путь прежнего
+    каталога (или None)."""
     ver_dir = os.path.join(root, PY_DIRNAME)
     new_dir = _candidate_dir(root)
     prev = None
@@ -807,14 +832,53 @@ def _swap_candidate(root, target):
         os.rename(ver_dir, prev)
     try:
         os.rename(new_dir, ver_dir)
+        if target == "linux-x64":
+            _repair_venv(ver_dir)
+            ok, detail = validate_candidate(root, target, mode=mode,
+                                            ver_dir=ver_dir)
+            if not ok:
+                raise RuntimeError("venv после переноса не валиден: %s" % detail)
     except Exception:
-        if prev:  # откат: вернуть рабочий каталог на место
+        # откат: сломанный кандидат (артефакт сборки) удаляется, прежний
+        # рабочий каталог возвращается на место; манифест при этом не тронут
+        if prev:
             try:
+                if os.path.isdir(ver_dir):
+                    shutil.rmtree(ver_dir)
                 os.rename(prev, ver_dir)
             except Exception:
                 pass
         raise
     return prev
+
+
+def _recover_interrupted(root, target):
+    """Восстановление после прерванного замещения: если конечный версионный
+    каталог отсутствует (процесс прерван между переносом прежнего каталога
+    и переименованием кандидата), возвращаем прежний рабочий каталог из
+    .staging/previous-* — предыдущая рабочая версия снова доступна.
+    Остаточный кандидат уносим в корзину. Возвращает (восстановлено_ли, detail)."""
+    ver_dir = os.path.join(root, PY_DIRNAME)
+    if os.path.isdir(ver_dir):
+        return False, "ok"  # рабочий каталог на месте — восстанавливать нечего
+    staging = os.path.join(root, ".staging")
+    cand = _candidate_dir(root)
+    if os.path.isdir(cand):  # остаточный кандидат от прерванной сборки
+        _quarantine(root, cand, ver_dir)
+    prevs = []
+    if os.path.isdir(staging):
+        for name in os.listdir(staging):
+            if name.startswith("previous-"):
+                prevs.append(os.path.join(staging, name))
+    if not prevs:
+        return False, "no-previous"
+    prevs.sort()  # previous-YYYYMMDD-HHMMSS: лексиграфически = по времени
+    newest = prevs[-1]
+    try:
+        os.rename(newest, ver_dir)
+        return True, newest
+    except Exception as e:
+        return False, "restore-failed: %s" % str(e)[:80]
 
 
 def build_candidate(root, target, force=False, assume_python=False, mode="full"):
@@ -1082,6 +1146,11 @@ def main():
         code = 2 if reason.startswith("busy") else 3
         return code
     try:
+        # Восстановление после прерванного замещения: если конечный каталог
+        # пропал, возвращаем прежний рабочий (предыдущая версия доступна).
+        rec, rec_detail = _recover_interrupted(root, target)
+        if rec:
+            print("  восстановление прежнего рабочего каталога: %s" % rec_detail)
         if not args.rebuild:
             ok, detail = check_active(root)
             gstate = grilling_status(root, read_manifest(root))[0] if ok else "none"
@@ -1113,10 +1182,12 @@ def main():
             print("[FAIL] установка заявлена полной, но grilling не установлен")
             print("[ОСТАНОВ] действующий рантайм не изменён, манифест не записан")
             return 1
-        # Замещение рабочего каталога (Windows): только после валидации,
-        # прежний рабочий рантайм переносится в .staging (не удаляется).
+        # Замещение рабочего каталога (Windows и Linux): только после
+        # валидации; прежний рабочий рантайм переносится в .staging (не
+        # удаляется). Linux: venv ремонтируется и пере-валидируется; при сбое
+        # — откат к прежнему рабочему каталогу.
         try:
-            prev = _swap_candidate(root, target)
+            prev = _swap_candidate(root, target, mode)
         except Exception as e:
             print("[FAIL] не удалось заместить рабочий каталог: %s" % str(e)[:160])
             print("[ОСТАНОВ] манифест прежний — повторите запуск")
