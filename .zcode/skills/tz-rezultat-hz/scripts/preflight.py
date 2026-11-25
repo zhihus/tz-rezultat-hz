@@ -67,7 +67,8 @@ def check_runtime():
     if not py:
         _line(_FAIL, "runtime", "валидный рантайм отсутствует (нет манифеста/интерпретатора)")
         _line("ДЕЙСТВИЕ", "",
-              "агент: запустите Bootstrap — bootstrap.ps1 (Windows) / bootstrap.sh (Linux)")
+              "агент: запустите Bootstrap в режиме полного комплекта — "
+              "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full (Linux)")
         return
     # Импорты проверяем в АКТИВНОМ интерпретаторе (не в host-питоне).
     mods = "import docx, lxml, pymupdf"
@@ -175,7 +176,9 @@ def check_format_agent(work):
     src = os.path.join(root, ver, "format-agent") if ver else None
     if not src or not bootstrap.verify_format_agent(src, ignore_pycache=True)[0]:
         _line(_FAIL, "format-agent", "набор в рантайме не готов (нет в манифесте/не сверен)")
-        _line("ДЕЙСТВИЕ", "", "агент: запустите Bootstrap — bootstrap.ps1 (Windows) / bootstrap.sh (Linux)")
+        _line("ДЕЙСТВИЕ", "",
+              "агент: запустите Bootstrap в режиме полного комплекта — "
+              "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full (Linux)")
         return
     try:
         shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__"))
@@ -355,17 +358,31 @@ def check_settings(work):
         return [_line(_WARN, "settings", "не читается: %s" % str(e)[:120])]
 
 
+def _grilling_runtime_dir():
+    """Каталог компонента grilling в активном рантайме (или None).
+    Источник — Bootstrap: полный комплект скачивает grilling из upstream
+    по пиннутому коммиту и сверяет контент-хэш."""
+    sys.path.insert(0, _SKILL_DIR)
+    import bootstrap
+    root = bootstrap._resolve_root()
+    d = bootstrap.grilling_dir(root)
+    if d and os.path.isdir(d) and bootstrap.verify_grilling(d)[0]:
+        return d
+    return None
+
+
 def check_skills(work, extra_bases=None, bundle_dir=None):
-    """Скиллы-зависимости, которые не входят в поставку скилла.
+    """Скиллы-зависимости полного комплекта.
     tz-1c-style (база тона) — ОБЯЗАТЕЛЕН, разворачивается из bundle.
-    grilling (самопрожарка Шага 2) — НЕОБЯЗАТЕЛЕН: сторонний скилл, не
-    распространяется; отсутствие → WARN, а не FAIL (этап «прожарка»
-    недоступен, основные шаги работают без него). Unica —
-    MCP-плагин: диагностируется отдельно в check_unica (кэш, рантайм,
-    сеть, handshake).
+    grilling (самопроверка Шага 2, «прожарка») — компонент полного
+    комплекта: скачивается Bootstrap'ом (--full) из официального upstream
+    по пиннутому коммиту; разворачивается из рантайма. Отсутствие не
+    блокирует конвейер (WARN), но означает НЕПОЛНОЦЕННУЮ аналитику —
+    самопроверка «прожарка» недоступна. Unica — MCP-плагин:
+    диагностируется отдельно в check_unica (кэш, рантайм, сеть, handshake).
     Портативность (урок 2026-11-19): отсутствующий скилл разворачивается
-    САМ из bundle скилла в первую базу (рабочую папку) — рабочая папка
-    самодостаточна, глобальные установки не нужны."""
+    САМ в первую базу (рабочую папку) — рабочая папка самодостаточна,
+    глобальные установки не нужны."""
     if hasattr(sys.stdout, "reconfigure"):
         # печать «→» при разворачивании из bundle падает в cp1251-пайп
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -379,38 +396,41 @@ def check_skills(work, extra_bases=None, bundle_dir=None):
     if bundle_dir is None:
         bundle_dir = os.path.join(_SKILL_DIR, "bundle")
     out = []
-    for name in ("grilling", "tz-1c-style"):
+    for name in ("tz-1c-style", "grilling"):
         found = next((b for b in bases
                       if os.path.isfile(os.path.join(b, name, "SKILL.md"))), None)
         if found:
             out.append(_line(_OK, "skills", "%s: %s" % (name, found)))
             continue
-        src = os.path.join(bundle_dir, name)
-        if os.path.isdir(src):
+        # источник для разворачивания: tz-1c-style — поставка (bundle),
+        # grilling — рантайм полного комплекта (скачан Bootstrap'ом)
+        src = (os.path.join(bundle_dir, name) if name == "tz-1c-style"
+               else _grilling_runtime_dir())
+        if src and os.path.isdir(src):
             try:
                 dst = os.path.join(bases[0], name)
                 shutil.copytree(src, dst)
                 out.append(_line("ИСПРАВЛЕНО", "skills",
-                                 "%s: развёрнут из bundle → %s" % (name, dst)))
+                                 "%s: развёрнут → %s" % (name, dst)))
             except Exception as e:
                 out.append(_line(_FAIL, "skills",
-                                 "%s: копирование из bundle не удалось: %s"
+                                 "%s: копирование не удалось: %s"
                                  % (name, str(e)[:120])))
                 out.append(_line("ДЕЙСТВИЕ", "",
                                  "агент: скопировать %s → %s вручную" % (src, bases[0])))
             continue
         if name == "grilling":
             out.append(_line(_WARN, "skills",
-                             "grilling не установлен и нет в bundle — этап "
-                             "«прожарка» (Шаг 2) недоступен; основные шаги "
-                             "работают без него"))
+                             "grilling не установлен — самопроверка Шага 2 "
+                             "(«прожарка») недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА"))
             out.append(_line("ДЕЙСТВИЕ", "",
-                             "агент: сообщить пользователю, что этап «прожарка» "
-                             "недоступен, и продолжить без него"))
+                             "агент: доложить пользователю, что аналитика будет "
+                             "неполноценной; установить полный комплект — "
+                             "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full"))
             continue
         out.append(_line(_FAIL, "skills",
                          "%s: не найден ни в одной установке (.zcode/skills, "
-                         "~/.zcode/skills, ~/.agents/skills) и нет в bundle" % name))
+                         "~/.zcode/skills, ~/.agents/skills) и нет в поставке" % name))
         out.append(_line("ДЕЙСТВИЕ", "",
                          "агент: установить скилл %s (папкой в .zcode/skills или "
                          "~/.agents/skills) до Шага 2" % name))

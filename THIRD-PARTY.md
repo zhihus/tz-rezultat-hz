@@ -22,12 +22,19 @@ a product that bundles PyMuPDF, AGPL-3.0 obligations apply to that
 product. If that is a problem, replace the PDF-rendering step or obtain
 a commercial PyMuPDF license.
 
-## Optional / external components (not part of this repository)
+## External components (fetched at first use, not redistributed)
 
-| Component | License | Note |
-|-----------|---------|------|
-| `format-agent-skill` | PolyForm Noncommercial 1.0.0 | Not redistributable here; the skill's bootstrap fetches it from the pinned upstream commit at first use |
-| `grilling` | third-party | Not redistributed; optional (the Step 2 «прожарка» stage) — absent → `[WARN]`, main steps work without it |
+The skill's bootstrap installs the **full component set** (the main and
+recommended scenario). It fetches each external component from its official
+upstream strictly at a **pinned commit** and verifies the exact file set and
+a content SHA-256 (line-ending-normalized); nothing is fetched from a moving
+branch or from an unverified copy. Neither component is redistributed by
+this repository.
+
+| Component | Source (pinned) | License | Note |
+|-----------|-----------------|---------|------|
+| `format-agent-skill` | `github.com/KaguraNanaga/format-agent-skill` @ `8dd726caba43953579d386339765b9613ca6bd58` | PolyForm Noncommercial 1.0.0 | Not redistributable here; the bootstrap fetches the 33-file minimal set and verifies `content_sha256 = 218ee326…96c8ff7f` |
+| `grilling` | `github.com/mattpocock/skills` @ `7739eaed7f8f3915437a8def198a6d0d7206dbc7` | MIT (© 2026 Matt Pocock) | Component of the full set (the Step 2 «прожарка» self-grill); the bootstrap fetches 2 files (`skills/productivity/grilling/SKILL.md`, `agents/openai.yaml`) and verifies `content_sha256 = 2c298228…a281ce46`. Declining it means **incomplete analytics** |
 
 The bundled `bundle/tz-1c-style/` style layer is part of this project
 (MIT).

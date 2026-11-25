@@ -15,6 +15,6 @@ __pycache__/
 # Логи
 *.log
 
-# Сторонние бандлы не распространяются в этом репозитории
+# Сторонние компоненты не распространяются в этом репозитории: format-agent
+# и grilling Bootstrap скачивает в runtime/ из upstream по пиннутым коммитам
 .zcode/skills/tz-rezultat-hz/bundle/format-agent-skill/
-.zcode/skills/tz-rezultat-hz/bundle/grilling/

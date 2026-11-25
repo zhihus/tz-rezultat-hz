@@ -15,13 +15,35 @@ agent's skills directory, for example:
 ~/.agents/skills/tz-rezultat-hz/
 ```
 
-No Python ships with the repository: on first use the agent runs
-`bootstrap.ps1` (Windows) or `bootstrap.sh` (Linux) from the skill
-folder. It downloads a pinned python-build-standalone, installs the
-dependencies (`scripts/requirements.txt`) and the pinned minimal
-`format-agent` set from the official upstream commit, then
-`scripts/preflight.py` verifies the environment and deploys the
-`tz-1c-style` style layer from `bundle/`.
+No Python ships with the repository. On first use the agent runs
+`bootstrap.ps1` (Windows) or `bootstrap.sh` (Linux) **without a mode flag**:
+it prints the list of components of the **full set** — the main and
+recommended scenario — with each component's purpose and the consequence of
+its absence (see `components.ru.md`), and exits **without downloading
+anything**. On your confirmation the same script is run in the full mode:
+
+```
+bootstrap.ps1 -Full          # Windows
+bash bootstrap.sh --full     # Linux
+```
+
+It then downloads, verifies against fixed pins (upstream commits + content
+SHA-256) and installs: the pinned `python-build-standalone`, the Python
+dependencies (`scripts/requirements.txt`), the pinned minimal `format-agent`
+set and the pinned `grilling` skill — the last two from their official
+upstream commits. Re-runs verify the already-installed components and do
+**not** re-download healthy ones. If a required component cannot be
+downloaded or verified, the installation stops with `[FAIL]` and the runtime
+and manifest are left unchanged — success is never imitated.
+
+`tz-1c-style` is part of this repository (`bundle/`, MIT); `scripts/preflight.py`
+verifies the environment and deploys it.
+
+**Declining `grilling` means incomplete analytics.** The Step 2 self-grill
+(«прожарка») is then unavailable and unverified gaps pass into the ТЗ — this
+is not normal work. Installing without it is possible only on an explicit
+refusal (`bootstrap.ps1 -NoGrilling` / `bash bootstrap.sh --no-grilling`) and
+is not offered as an equal alternative.
 
 ## Use
 
@@ -33,6 +55,7 @@ the ТЗ template and fills it. Entry point and step-by-step protocol —
 
 - `.zcode/skills/tz-rezultat-hz/SKILL.md` — the skill's route and rules.
 - `bootstrap.ps1` / `bootstrap.sh` / `bootstrap.py` — runtime install.
+- `components.ru.md` — the component list printed on first run.
 - `scripts/` — the pipeline (extraction, build, gates, render).
 - `references/` — document model and method.
 - `bundle/tz-1c-style/` — base tone layer (MIT).
@@ -52,11 +75,10 @@ Russian 1С ТЗ documents).
 
 ## Dependencies
 
-- `grilling` — an optional third-party skill (the Step 2 «прожарка» /
-  self-grill stage). It is not shipped here; when absent, preflight
-  reports `[WARN]` and the main steps work without it.
-- Runtime deps (python-docx, PyMuPDF, lxml, pywin32) are installed at
-  first use by the skill's bootstrap, not redistributed here.
+Everything is installed at first use by the skill's bootstrap and is **not**
+redistributed here: Python and the libraries (python-docx, PyMuPDF, lxml,
+pywin32), `format-agent` (pinned upstream commit) and `grilling` (pinned
+upstream commit, MIT). Licenses and provenance — [`THIRD-PARTY.md`](THIRD-PARTY.md).
 
 ## License
 

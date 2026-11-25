@@ -5,20 +5,38 @@
 SHA-256 с зафиксированным пином, строит версионный каталог-кандидат
 (изоляция по ОС: Windows — python311._pth, Linux — venv), ставит
 зависимости, скачивает 33-файловый набор format-agent из upstream по
-пиннутому коммиту (сверяя точный состав и контент-хэш), валидирует
-кандидата и атомарно переключает manifest.json.
+пиннутому коммиту (сверяя точный состав и контент-хэш), скачивает
+2-файловый скилл grilling из upstream по пиннутому коммиту (MIT),
+валидирует кандидата и атомарно переключает manifest.json.
+
+КОМПОНЕНТЫ: полный комплект (Python + библиотеки, format-agent,
+tz-1c-style, grilling) — ОСНОВНОЙ и РЕКОМЕНДУЕМЫЙ сценарий установки.
+Все компоненты обязательны для полноценной работы: без grilling
+самопроверка Шага 2 («прожарка») недоступна и АНАЛИТИКА НЕПОЛНОЦЕННА.
+При первом запуске (нет валидного рантайма) скрипт печатает перечень
+компонентов и НЕ ставит ничего, ожидая подтверждения пользователя
+(exit 4); установка идёт только по явному режиму. Если скачать или
+сверить обязательный компонент не удалось — установка НЕ имитируется:
+[FAIL] и остановка, манифест не меняется.
 
 Защита от параллельного запуска — замок {pid, hostname, start_time, token}:
 чужая живая блокировка → отказ; устаревший замок НЕ удаляется автоматически
 (безопасность удаления не подтверждена) → отказ с инструкцией; STEAL запрещён.
 
-Запуск:  <любой Python 3.8+> bootstrap.py [--rebuild] [--root <путь>] [--check]
-  --rebuild  — пересобрать рантайм даже если активный валиден
-  --root     — переопределить runtime_root (тесты)
-  --check    — только проверить активный рантайм, ничего не скачивать
+Запуск:  <любой Python 3.8+> bootstrap.py [режим] [--rebuild] [--root <путь>]
+  --plan         — показать перечень компонентов и выйти (ничего не скачивать)
+  --full         — установить ПОЛНЫЙ комплект (рекомендуется; включает grilling)
+  --no-grilling  — НЕ рекомендуется: без grilling; аналитика будет неполноценной
+  --rebuild      — пересобрать рантайм даже если активный валиден
+  --root         — переопределить runtime_root (тесты)
+  --check        — только проверить активный рантайм и компоненты
+  --assume-python — интерпретатор уже распакован/изолирован (bootstrap.ps1/.sh)
+  Без режима: валидный полный рантайм → [OK] и выход 0; иначе — перечень
+  компонентов и ожидание подтверждения (exit 4), ничего не скачивается.
 
 Коды возврата: 0 — готово/валиден; 1 — ошибка; 2 — чужой живой замок;
-3 — устаревший замок (удалить вручную).
+3 — устаревший замок (удалить вручную); 4 — нужно подтверждение режима
+установки (пользователь ещё не выбрал; ничего не скачано).
 """
 
 import argparse
@@ -114,9 +132,45 @@ _SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
 # кросс-сверки контент-хэша в тестах; в публичном репо отсутствует
 # (git-ignored).
 _BUNDLE_FA = os.path.join(_SKILL_DIR, "bundle", "format-agent-skill")
+_BUNDLE_STYLE = os.path.join(_SKILL_DIR, "bundle", "tz-1c-style")
 _REQS = os.path.join(_SKILL_DIR, "scripts", "requirements.txt")
 
-MANIFEST_SCHEMA = 1
+# grilling: сторонний скилл (MIT, © 2026 Matt Pocock) из ОФИЦИАЛЬНОГО
+# upstream (плагин mattpocock-skills официального маркетплейса). Ставится
+# СТРОГО по пиннутому коммиту (не ветка, не latest). Пути в GR_FILES —
+# относительно КОРНЯ репозитория upstream (как FA_FILES), поэтому
+# контент-хэш воспроизводим независимо от места установки; локально файлы
+# кладутся БЕЗ префикса GR_PREFIX (SKILL.md, agents/openai.yaml).
+GR_UPSTREAM = "https://github.com/mattpocock/skills"
+GR_COMMIT = "7739eaed7f8f3915437a8def198a6d0d7206dbc7"
+GR_PREFIX = "skills/productivity/grilling/"
+GR_FILES = [
+    "skills/productivity/grilling/SKILL.md",
+    "skills/productivity/grilling/agents/openai.yaml",
+]
+GR_CONTENT_SHA256 = "2c29822897e0da69c46ef26bda242eb3229c7509745472be0fe58935a281ce46"
+GR_LICENSE = "MIT"
+GR_RAW_BASE = ("https://raw.githubusercontent.com/mattpocock/skills/"
+               + GR_COMMIT + "/")
+
+MANIFEST_SCHEMA = 2
+
+# Перечень компонентов — единый текст (печатается на первом запуске).
+# Один источник для bootstrap.py и (до появления Python) bootstrap.ps1 /
+# bootstrap.sh: файл читается явным UTF-8, поэтому русский текст не зависит
+# от кодировки, в которой интерпретируется сам скрипт.
+PLAN_FILE = os.path.join(_SKILL_DIR, "components.ru.md")
+
+
+def print_plan():
+    """Напечатать перечень компонентов полного комплекта (файл поставки)."""
+    try:
+        with open(PLAN_FILE, encoding="utf-8") as f:
+            sys.stdout.write(f.read())
+    except OSError as e:
+        print("[WARN] перечень компонентов недоступен (%s): %s" % (PLAN_FILE, e))
+        print("Компоненты полного комплекта: Python + библиотеки, format-agent, "
+              "tz-1c-style, grilling (полный комплект — основной сценарий).")
 
 
 # --- утилиты ----------------------------------------------------------------
@@ -278,7 +332,7 @@ def release_lock(root):
 
 # --- format-agent (upstream, пиннутый коммит) --------------------------------
 
-def _fa_normalized_sha256(path):
+def _normalized_sha256(path):
     """SHA-256 содержимого файла с нормализацией CRLF→LF (только для хэша)."""
     with open(path, "rb") as f:
         data = f.read()
@@ -294,7 +348,7 @@ def _fa_content_sha256(src_dir, files=None):
     for rel in files:
         fp = os.path.join(src_dir, rel.replace("/", os.sep))
         h.update(rel.encode())
-        h.update(_fa_normalized_sha256(fp).encode())
+        h.update(_normalized_sha256(fp).encode())
     return h.hexdigest()
 
 
@@ -420,6 +474,132 @@ def fetch_format_agent(root, ver_dir, downloader=None, files=None, pin=None,
                        "(commit %s): %s" % (FA_COMMIT, str(e)[:160]))
 
 
+# --- grilling (upstream, пиннутый коммит, MIT) -------------------------------
+
+def _gr_local(rel):
+    """Путь в наборе (от корня upstream) → локальный путь в каталоге скилла."""
+    return rel[len(GR_PREFIX):] if rel.startswith(GR_PREFIX) else rel
+
+
+def _gr_content_sha256(base_dir):
+    """Контент-SHA-256 набора grilling: путь от корня upstream + содержимое
+    с нормализацией CRLF→LF. base_dir — каталог скилла (SKILL.md, agents/)."""
+    h = hashlib.sha256()
+    for rel in GR_FILES:
+        fp = os.path.join(base_dir, _gr_local(rel).replace("/", os.sep))
+        h.update(rel.encode())
+        h.update(_normalized_sha256(fp).encode())
+    return h.hexdigest()
+
+
+def _gr_scan(base_dir):
+    """Фактический состав каталога скилла (относительные пути, без байткода)."""
+    found = set()
+    for dirpath, dirnames, filenames in os.walk(base_dir):
+        dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+        for f in filenames:
+            rel = os.path.relpath(os.path.join(dirpath, f), base_dir)
+            found.add(rel.replace(os.sep, "/"))
+    return found
+
+
+def verify_grilling(base_dir, files=None, pin=None):
+    """Сверить набор grilling: ТОЧНЫЙ состав путей + контент-хэш (CRLF→LF).
+    Возвращает (ok, detail). Отсутствующий/лишний файл → отказ."""
+    files = GR_FILES if files is None else files
+    pin = GR_CONTENT_SHA256 if pin is None else pin
+    if not os.path.isdir(base_dir):
+        return False, "нет каталога %s" % base_dir
+    expected = {_gr_local(r) for r in files}
+    found = _gr_scan(base_dir)
+    missing = sorted(expected - found)
+    if missing:
+        return False, "отсутствует: %s" % ", ".join(missing[:6])
+    extra = sorted(found - expected)
+    if extra:
+        return False, "лишний: %s" % ", ".join(extra[:6])
+    got = _gr_content_sha256(base_dir)
+    if got != pin:
+        return False, "контент-хэш %s ≠ пин %s" % (got, pin)
+    return True, got
+
+
+def _gr_download(url, dst):
+    """Скачивание одного файла grilling (curl; .part → rename)."""
+    tmp = dst + ".part"
+    r = subprocess.run(
+        ["curl", "-sSL", "--fail", "--retry", "3", "--max-time", "120",
+         "-o", tmp, url], capture_output=True)
+    if r.returncode != 0 or not os.path.isfile(tmp):
+        raise RuntimeError("%s" % (r.stderr or b"").decode(errors="replace")[:160])
+    os.replace(tmp, dst)
+
+
+def stage_grilling(root, downloader=None, url_base=None):
+    """Скачать 2 файла grilling по пиннутому коммиту в staging и СВЕРИТЬ
+    состав и контент-хэш. Выполняется ДО пересборки версионного каталога:
+    провал не трогает рабочий рантайм (установка не имитируется).
+    Идемпотентно: уже скачанный и сверенный staging не перекачивается.
+    Возвращает (ok, detail, staged_dir|None)."""
+    url_base = GR_RAW_BASE if url_base is None else url_base
+    staging = os.path.join(root, ".staging", "grilling-src")
+    if os.path.isdir(staging) and verify_grilling(staging)[0]:
+        return True, "grilling: скачан и сверен раньше (staging)", staging
+    if os.path.isdir(staging):
+        shutil.rmtree(staging)
+    os.makedirs(staging)
+    try:
+        for rel in GR_FILES:
+            dst = os.path.join(staging, _gr_local(rel).replace("/", os.sep))
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            print("  скачиваю grilling: %s …" % _gr_local(rel))
+            (downloader or _gr_download)(url_base + rel, dst)
+    except Exception as e:
+        return False, ("grilling: не удалось скачать из upstream (commit %s): %s"
+                       % (GR_COMMIT, str(e)[:160])), None
+    ok, detail = verify_grilling(staging)
+    if not ok:
+        return False, "grilling: %s" % detail, None
+    return True, "grilling скачан и сверен (commit %s)" % GR_COMMIT[:12], staging
+
+
+def copy_grilling(src_dir, dst_dir, files=None, pin=None):
+    """Скопировать сверенный набор grilling в dst_dir БАЙТ-В-БАЙТ и
+    повторно сверить контент-хэш. Возвращает хэш; расхождение → RuntimeError."""
+    files = GR_FILES if files is None else files
+    pin = GR_CONTENT_SHA256 if pin is None else pin
+    os.makedirs(dst_dir, exist_ok=True)
+    for rel in files:
+        src = os.path.join(src_dir, _gr_local(rel).replace("/", os.sep))
+        dst = os.path.join(dst_dir, _gr_local(rel).replace("/", os.sep))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(src, dst)
+    got = _gr_content_sha256(dst_dir)
+    if got != pin:
+        raise RuntimeError("grilling: контент-хэш %s ≠ пин %s" % (got, pin))
+    return got
+
+
+def grilling_dir(root, manifest=None):
+    """Каталог установленного grilling в активном рантайме (или None)."""
+    m = manifest if manifest is not None else read_manifest(root)
+    ver = (m.get("active") or {}).get("python") if m else None
+    if not ver:
+        return None
+    return os.path.join(root, ver, "grilling")
+
+
+def grilling_status(root, manifest=None):
+    """Состояние компонента grilling: 'ok' | 'absent' | 'invalid' | 'none'."""
+    d = grilling_dir(root, manifest)
+    if not d:
+        return "none", "нет активного рантайма"
+    if not os.path.isdir(d):
+        return "absent", "grilling не установлен"
+    ok, detail = verify_grilling(d)
+    return ("ok", detail) if ok else ("invalid", detail)
+
+
 # --- интерпретатор -----------------------------------------------------------
 
 def _py_exe(ver_dir, target):
@@ -477,15 +657,38 @@ def _download(url, dst):
     os.replace(tmp, dst)
 
 
-def build_candidate(root, target, force=False, assume_python=False):
+def build_candidate(root, target, force=False, assume_python=False, mode="full"):
     """Собирает версионный каталог-кандидат. Возвращает (ok, detail).
+    mode — 'full' (полный комплект: включая grilling) | 'no-grilling'.
     assume_python=True — интерпретатор уже распакован/изолирован (сделали
-    bootstrap.ps1/.sh); пропускаем download/extract/isolate."""
+    bootstrap.ps1/.sh); пропускаем download/extract/isolate.
+    Обязательные внешние компоненты (grilling) и наличие поставки
+    (tz-1c-style) проверяются ДО пересборки каталога: провал не разрушает
+    рабочий рантайм и не имитирует успешную установку."""
     pin = PINS[target]
     ver_dir = os.path.join(root, PY_DIRNAME)
     staging = os.path.join(root, ".staging")
     os.makedirs(staging, exist_ok=True)
     arc = os.path.join(staging, pin["archive"])
+
+    # tz-1c-style — компонент поставки: без него полный комплект неполон.
+    if not os.path.isfile(os.path.join(_BUNDLE_STYLE, "SKILL.md")):
+        return False, ("компонент tz-1c-style отсутствует в поставке: %s — "
+                       "восстановите bundle/tz-1c-style/" % _BUNDLE_STYLE)
+    # grilling: приобрести и СВЕРИТЬ до пересборки каталога.
+    staged_gr = None
+    if mode == "full":
+        gok, gdetail, staged_gr = stage_grilling(root)
+        if not gok:
+            return False, gdetail
+        print("  %s" % gdetail)
+    else:
+        # не понижать уже установленный компонент: если он валиден — унести
+        # в staging (пересборка удаляет версионный каталог)
+        existing = os.path.join(ver_dir, "grilling")
+        if os.path.isdir(existing) and verify_grilling(existing)[0]:
+            staged_gr = os.path.join(staging, "grilling-keep")
+            copy_grilling(existing, staged_gr)
     try:
         if assume_python:
             py_base = os.path.join(ver_dir, "python")
@@ -523,13 +726,17 @@ def build_candidate(root, target, force=False, assume_python=False):
         if not fok:
             return False, fdetail
         print("  %s" % fdetail)
+        if staged_gr:
+            copy_grilling(staged_gr, os.path.join(ver_dir, "grilling"))
+            print("  grilling установлен (commit %s)" % GR_COMMIT[:12])
         return True, ver_dir
     except Exception as e:
         return False, "сборка не удалась: %s" % str(e)[:200]
 
 
-def validate_candidate(root, target):
-    """Валидация кандидата: интерпретатор работает, импорты, набор на месте."""
+def validate_candidate(root, target, mode="full"):
+    """Валидация кандидата: интерпретатор работает, импорты, наборы на месте.
+    mode='full' → обязателен и сверен компонент grilling."""
     ver_dir = os.path.join(root, PY_DIRNAME)
     pin = PINS[target]
     if target == "win-x64":
@@ -553,6 +760,13 @@ def validate_candidate(root, target):
         vok, vdetail = verify_format_agent(fa, ignore_pycache=True)
         if not vok:
             return False, "format-agent: %s" % vdetail
+        gr = os.path.join(ver_dir, "grilling")
+        if mode == "full":
+            gok, gdetail = verify_grilling(gr)
+            if not gok:
+                return False, "grilling: %s" % gdetail
+        elif os.path.isdir(gr) and not verify_grilling(gr)[0]:
+            return False, "grilling: %s" % verify_grilling(gr)[1]
         return True, ver
     except Exception as e:
         return False, "валидация не удалась: %s" % str(e)[:120]
@@ -603,6 +817,12 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser()
+    ap.add_argument("--plan", action="store_true",
+                    help="показать перечень компонентов и выйти")
+    ap.add_argument("--full", action="store_true",
+                    help="установить ПОЛНЫЙ комплект (рекомендуется)")
+    ap.add_argument("--no-grilling", action="store_true",
+                    help="НЕ рекомендуется: без grilling (аналитика неполноценна)")
     ap.add_argument("--rebuild", action="store_true", help="пересобрать даже если валиден")
     ap.add_argument("--root", default=None, help="переопределить runtime_root")
     ap.add_argument("--check", action="store_true", help="только проверить, не скачивать")
@@ -610,6 +830,10 @@ def main():
                     help="интерпретатор уже распакован/изолирован "
                          "(сделали bootstrap.ps1/.sh); пропускаем download/extract/isolate")
     args = ap.parse_args()
+    if args.full and args.no_grilling:
+        print("[FAIL] --full и --no-grilling взаимоисключающие")
+        return 1
+    mode = "full" if args.full else ("no-grilling" if args.no_grilling else None)
 
     target = _target()
     if target is None:
@@ -621,10 +845,49 @@ def main():
     print("платформа: %s" % target)
     print("runtime_root: %s" % root)
 
+    if args.plan:
+        print_plan()
+        return 0
+
+    m = read_manifest(root)
     if args.check:
         ok, detail = check_active(root)
-        print("[%s] %s" % ("OK  " if ok else "FAIL", detail))
-        return 0 if ok else 1
+        if not ok:
+            print("[FAIL] runtime: %s" % detail)
+            return 1
+        gstate, gdetail = grilling_status(root, m)
+        if gstate == "ok":
+            print("[OK  ] %s + grilling — полный комплект" % detail)
+            return 0
+        if (m.get("install") or {}).get("mode") == "full":
+            print("[FAIL] grilling: %s" % gdetail)
+            print("[ДЕЙСТВИЕ] восстановить компонент: bootstrap --full")
+            return 1
+        print("[OK  ] %s" % detail)
+        print("[WARN] grilling не установлен — самопроверка Шага 2 недоступна, "
+              "АНАЛИТИКА НЕПОЛНОЦЕННА")
+        print("[ДЕЙСТВИЕ] полный комплект: bootstrap --full")
+        return 0
+
+    if mode is None:
+        # Режим не задан: валидный и полный рантайм → ничего не делать;
+        # иначе — показать перечень и ЖДАТЬ подтверждения (ничего не качать).
+        ok, detail = check_active(root)
+        gstate, gdetail = grilling_status(root, m) if ok else ("none", "")
+        if ok and gstate == "ok":
+            print("[OK  ] %s + grilling — рантайм валиден, ничего не скачиваю" % detail)
+            return 0
+        if ok and gstate == "absent" and (m.get("install") or {}).get("mode") != "full":
+            print("[OK  ] %s" % detail)
+            print("[WARN] grilling не установлен (установка без прожарки) — "
+                  "самопроверка Шага 2 недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА")
+            print("[ДЕЙСТВИЕ] полный комплект: bootstrap --full")
+            return 0
+        print_plan()
+        print("[ОЖИДАНИЕ] подтверждение пользователя: повторите запуск в режиме "
+              "полного комплекта — bootstrap.ps1 -Full (Windows) / "
+              "bash bootstrap.sh --full (Linux) / bootstrap.py --full")
+        return 4
 
     ok, reason = acquire_lock(root)
     if not ok:
@@ -634,20 +897,28 @@ def main():
     try:
         if not args.rebuild:
             ok, detail = check_active(root)
-            if ok:
+            gstate = grilling_status(root, read_manifest(root))[0] if ok else "none"
+            if ok and (gstate == "ok" or mode != "full"):
                 print("[OK  ] %s — ничего не скачиваю" % detail)
                 return 0
-            print("[WARN] активный рантайм не валиден (%s) — собираю" % detail)
+            if ok:
+                print("[WARN] компонент grilling не готов (%s) — доустанавливаю" % gstate)
+            else:
+                print("[WARN] активный рантайм не валиден (%s) — собираю" % detail)
         ok, detail = build_candidate(root, target, force=args.rebuild,
-                             assume_python=args.assume_python)
+                                     assume_python=args.assume_python, mode=mode)
         if not ok:
             print("[FAIL] %s" % detail)
+            print("[ОСТАНОВ] установка комплекта прервана — рантайм не изменён, "
+                  "манифест не записан; устраните причину и повторите")
             return 1
-        ok, detail = validate_candidate(root, target)
+        ok, detail = validate_candidate(root, target, mode=mode)
         if not ok:
             print("[FAIL] кандидат не прошёл валидацию: %s" % detail)
+            print("[ОСТАНОВ] рантайм не переключён (манифест прежний)")
             return 1
         # атомарный сдвиг манифеста
+        gr_ok = verify_grilling(os.path.join(root, PY_DIRNAME, "grilling"))[0]
         m = read_manifest(root) or {}
         m["schema"] = MANIFEST_SCHEMA
         m["active"] = {"python": PY_DIRNAME, "format_agent": FA_CONTENT_SHA256}
@@ -656,10 +927,20 @@ def main():
                        "sha256": PINS[target]["sha256"]}
         m["format_agent"] = {"upstream": FA_UPSTREAM, "commit": FA_COMMIT,
                              "files": 33, "content_sha256": FA_CONTENT_SHA256}
+        m["grilling"] = ({"upstream": GR_UPSTREAM, "commit": GR_COMMIT,
+                          "files": len(GR_FILES), "license": GR_LICENSE,
+                          "content_sha256": GR_CONTENT_SHA256} if gr_ok else None)
+        m["install"] = {"mode": mode if gr_ok or mode == "full" else "no-grilling",
+                        "components": ["python", "deps", "format-agent",
+                                       "tz-1c-style"]
+                                      + (["grilling"] if gr_ok else [])}
         m["updated"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         write_manifest_atomic(root, m)
         print("[OK  ] рантайм готов: %s" % PY_DIRNAME)
         print("интерпретатор: %s" % active_python(root, m))
+        if not gr_ok:
+            print("[WARN] установлено БЕЗ grilling — самопроверка Шага 2 "
+                  "недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА (полный комплект: --full)")
         return 0
     finally:
         release_lock(root)

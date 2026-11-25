@@ -1,18 +1,34 @@
-# ============================================================
+﻿# ============================================================
 # bootstrap.ps1 — первый запуск tz-rezultat-hz БЕЗ Python (Windows).
 #
-# Скачивает python-build-standalone (pinned-релиз), сверяет SHA-256
-# с зафиксированным пином, распаковывает, ставит изоляцию
-# (python311._pth + DLL pywin32), затем вызывает bootstrap.py
-# на свежем интерпретаторе для зависимостей и format-agent.
+# Печатает перечень компонентов полного комплекта. Установка идёт ТОЛЬКО
+# по явному режиму -Full: без него скрипт показывает перечень и ждёт
+# подтверждения пользователя (exit 4), НИЧЕГО не скачивая.
 #
-# Пины НИЖЕ ДОЛЖНЫ совпадать с bootstrap.py (PBS_RELEASE /
-# PY_VERSION / SHA-256 win-x64). Это намеренное дублирование:
-# скрипт работает до появления Python и не может читать bootstrap.py.
+# В режиме -Full: скачивает python-build-standalone (pinned-релиз), сверяет
+# SHA-256 с зафиксированным пином, распаковывает, ставит изоляцию
+# (python311._pth + DLL pywin32), затем вызывает bootstrap.py на свежем
+# интерпретаторе — зависимости, format-agent (upstream, пиннутый коммит)
+# и grilling (upstream, пиннутый коммит, MIT).
 #
-# Запуск:  powershell -ExecutionPolicy Bypass -File bootstrap.ps1
+# Пины НИЖЕ ДОЛЖНЫ совпадать с bootstrap.py (PBS_RELEASE / PY_VERSION /
+# SHA-256 win-x64), а перечень компонентов — с components.ru.md.
+# Дублирование намеренное: скрипт работает до появления Python и не может
+# читать bootstrap.py. Файл сохранён в UTF-8 С BOM — Windows PowerShell 5.1
+# иначе читает русский текст как ANSI (кракозябры в выводе).
+#
+# Запуск:  powershell -ExecutionPolicy Bypass -File bootstrap.ps1 [-Plan] [-Full] [-NoGrilling]
+#   -Plan        — показать перечень компонентов и выйти
+#   -Full        — установить ПОЛНЫЙ комплект (рекомендуется)
+#   -NoGrilling  — НЕ рекомендуется: без grilling (аналитика будет неполноценной)
 # ============================================================
+param(
+    [switch]$Plan,
+    [switch]$Full,
+    [switch]$NoGrilling
+)
 $ErrorActionPreference = "Stop"
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 # --- пины (должны совпадать с bootstrap.py) ---
 $PBS_RELEASE = "20261124"
@@ -24,6 +40,11 @@ $PBS_BASE    = "https://github.com/astral-sh/python-build-standalone/releases/do
 
 $SkillDir    = $PSScriptRoot
 $BootstrapPy = Join-Path $SkillDir "bootstrap.py"
+$PlanFile    = Join-Path $SkillDir "components.ru.md"
+
+function Show-Plan {
+    Get-Content -Encoding UTF8 -Path $PlanFile
+}
 
 # --- runtime_root (скилл → кэш ОС) ---
 function Test-Writable([string]$dir) {
@@ -53,11 +74,22 @@ $Arc     = Join-Path $Staging $ARCHIVE
 Write-Host "== BOOTSTRAP tz-rezultat-hz (ps1) =="
 Write-Host "runtime_root: $RuntimeRoot"
 
-# --- рантайм уже готов? ---
+if ($Plan) { Show-Plan; exit 0 }
+
+# --- рантайм уже готов ПОЛНЫМ комплектом? ---
 if (Test-Path $PyExe) {
     & $PyExe $BootstrapPy --root $RuntimeRoot --check
     if ($LASTEXITCODE -eq 0) { exit 0 }
-    Write-Host "[WARN] активный рантайм не валиден — пересобираю"
+}
+
+# --- режим не задан → показать перечень и ЖДАТЬ подтверждения ---
+if (-not $Full -and -not $NoGrilling) {
+    Show-Plan
+    Write-Host "[ОЖИДАНИЕ] подтверждение пользователя: повторите запуск с -Full (полный комплект, рекомендуется)"
+    exit 4
+}
+if ($NoGrilling) {
+    Write-Host "[ВНИМАНИЕ] установка БЕЗ grilling: самопроверка Шага 2 недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА"
 }
 
 # --- скачивание (curl.exe; .part → rename) ---
@@ -79,9 +111,13 @@ Write-Host "  SHA-256 сверен с пином"
 # --- распаковка в версионный каталог (свежий) ---
 # Архив PBS содержит в корне папку python/, поэтому распаковка в
 # $VerDir даёт $VerDir/python/python.exe (как в bootstrap.py).
+# tar берём из System32 (bsdtar): tar из PATH может оказаться MSYS/Git-Bash
+# и не понять путь «C:\…» («Cannot connect to C: resolve failed»).
+$TarExe = Join-Path $env:SystemRoot "System32\tar.exe"
+if (-not (Test-Path $TarExe)) { $TarExe = "tar" }
 if (Test-Path $VerDir) { Remove-Item $VerDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $VerDir | Out-Null
-& tar -xzf $Arc -C $VerDir
+& $TarExe -xzf $Arc -C $VerDir
 if ($LASTEXITCODE -ne 0) { throw "tar: распаковка не удалась" }
 
 # --- изоляция: python311._pth + DLL pywin32 ---
@@ -99,6 +135,7 @@ foreach ($dll in @("pythoncom311.dll", "pywintypes311.dll")) {
 }
 Write-Host "  изоляция: $PyExe"
 
-# --- делегируем bootstrap.py (pip + format-agent + validate + manifest) ---
-& $PyExe $BootstrapPy --root $RuntimeRoot --assume-python
+# --- делегируем bootstrap.py (pip + format-agent + grilling + validate + manifest) ---
+$modeArg = if ($Full) { "--full" } else { "--no-grilling" }
+& $PyExe $BootstrapPy --root $RuntimeRoot --assume-python $modeArg
 exit $LASTEXITCODE

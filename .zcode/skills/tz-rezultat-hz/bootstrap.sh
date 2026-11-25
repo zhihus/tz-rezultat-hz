@@ -2,18 +2,38 @@
 # ============================================================
 # bootstrap.sh — первый запуск tz-rezultat-hz БЕЗ Python (Linux).
 #
-# Скачивает python-build-standalone (pinned-релиз), сверяет SHA-256
-# с зафиксированным пином, распаковывает, создаёт venv (изоляция),
-# затем вызывает bootstrap.py на свежем интерпретаторе для
-# зависимостей и format-agent.
+# Печатает перечень компонентов полного комплекта. Установка идёт ТОЛЬКО
+# по явному режиму --full: без него скрипт показывает перечень и ждёт
+# подтверждения пользователя (exit 4), НИЧЕГО не скачивая.
 #
-# Пины НИЖЕ ДОЛЖНЫ совпадать с bootstrap.py (PBS_RELEASE /
-# PY_VERSION / SHA-256 linux-x64). Это намеренное дублирование:
-# скрипт работает до появления Python и не может читать bootstrap.py.
+# В режиме --full: скачивает python-build-standalone (pinned-релиз), сверяет
+# SHA-256 с зафиксированным пином, распаковывает, создаёт venv (изоляция),
+# затем вызывает bootstrap.py на свежем интерпретаторе — зависимости,
+# format-agent (upstream, пиннутый коммит) и grilling (upstream, пиннутый
+# коммит, MIT).
 #
-# Запуск:  bash bootstrap.sh
+# Пины НИЖЕ ДОЛЖНЫ совпадать с bootstrap.py (PBS_RELEASE / PY_VERSION /
+# SHA-256 linux-x64), а перечень компонентов — с components.ru.md.
+# Дублирование намеренное: скрипт работает до появления Python и не может
+# читать bootstrap.py.
+#
+# Запуск:  bash bootstrap.sh [--plan] [--full] [--no-grilling]
+#   --plan        — показать перечень компонентов и выйти
+#   --full        — установить ПОЛНЫЙ комплект (рекомендуется)
+#   --no-grilling — НЕ рекомендуется: без grilling (аналитика будет неполноценной)
 # ============================================================
 set -euo pipefail
+
+PLAN=""
+MODE=""
+for arg in "$@"; do
+    case "$arg" in
+        --plan)        PLAN=1 ;;
+        --full)        MODE="--full" ;;
+        --no-grilling) MODE="--no-grilling" ;;
+        *) echo "[FAIL] неизвестный аргумент: $arg (см. --help в шапке)" >&2; exit 1 ;;
+    esac
+done
 
 # --- пины (должны совпадать с bootstrap.py) ---
 PBS_RELEASE="20261124"
@@ -25,6 +45,9 @@ PBS_BASE="https://github.com/astral-sh/python-build-standalone/releases/download
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BOOTSTRAP_PY="${SCRIPT_DIR}/bootstrap.py"
+PLAN_FILE="${SCRIPT_DIR}/components.ru.md"
+
+show_plan() { cat "$PLAN_FILE"; }
 
 # --- runtime_root (скилл → кэш ОС) ---
 is_writable() {
@@ -50,10 +73,21 @@ ARC="${STAGING}/${ARCHIVE}"
 echo "== BOOTSTRAP tz-rezultat-hz (sh) =="
 echo "runtime_root: ${RUNTIME_ROOT}"
 
-# --- рантайм уже готов? ---
+if [ -n "$PLAN" ]; then show_plan; exit 0; fi
+
+# --- рантайм уже готов ПОЛНЫМ комплектом? ---
 if [ -x "$VENV_PY" ]; then
     "$VENV_PY" "$BOOTSTRAP_PY" --root "$RUNTIME_ROOT" --check && exit 0
-    echo "[WARN] активный рантайм не валиден — пересобираю"
+fi
+
+# --- режим не задан → показать перечень и ЖДАТЬ подтверждения ---
+if [ -z "$MODE" ]; then
+    show_plan
+    echo "[ОЖИДАНИЕ] подтверждение пользователя: повторите запуск с --full (полный комплект, рекомендуется)"
+    exit 4
+fi
+if [ "$MODE" = "--no-grilling" ]; then
+    echo "[ВНИМАНИЕ] установка БЕЗ grilling: самопроверка Шага 2 недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА"
 fi
 
 # --- скачивание (curl; .part → rename) ---
@@ -83,5 +117,5 @@ tar -xzf "$ARC" -C "$VER_DIR"
 "${PY_DIR}/bin/python3" -m venv "${VER_DIR}/venv"
 echo "  изоляция (venv): ${VENV_PY}"
 
-# --- делегируем bootstrap.py (pip + format-agent + validate + manifest) ---
-"$VENV_PY" "$BOOTSTRAP_PY" --root "$RUNTIME_ROOT" --assume-python
+# --- делегируем bootstrap.py (pip + format-agent + grilling + validate + manifest) ---
+"$VENV_PY" "$BOOTSTRAP_PY" --root "$RUNTIME_ROOT" --assume-python "$MODE"
