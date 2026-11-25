@@ -358,27 +358,71 @@ def check_settings(work):
         return [_line(_WARN, "settings", "не читается: %s" % str(e)[:120])]
 
 
-def _grilling_runtime_dir():
-    """Каталог компонента grilling в активном рантайме (или None).
-    Источник — Bootstrap: полный комплект скачивает grilling из upstream
-    по пиннутому коммиту и сверяет контент-хэш."""
+def _check_grilling(found, deploy_base):
+    """Компонент grilling (самопроверка Шага 2, «прожарка»).
+    found — уже готовая копия в одной из баз скиллов (или None);
+    deploy_base — рабочая папка, куда компонент разворачивается из рантайма.
+    Сигналы НЕ взаимозаменяемы:
+      [FAIL] — комплект заявлен ПОЛНЫМ (манифест install.mode = full), но
+               компонент отсутствует или повреждён → останавливаемся;
+      [WARN] — явный отказ пользователя (--no-grilling) либо комплект
+               неизвестен (манифест прежнего формата): конвейер идёт, но
+               АНАЛИТИКА НЕПОЛНОЦЕННА."""
     sys.path.insert(0, _SKILL_DIR)
     import bootstrap
     root = bootstrap._resolve_root()
-    d = bootstrap.grilling_dir(root)
-    if d and os.path.isdir(d) and bootstrap.verify_grilling(d)[0]:
-        return d
-    return None
+    sev, msg = bootstrap.grilling_verdict(root)
+    out = []
+    if found:
+        out.append(_line(_OK, "skills", "grilling: %s" % found))
+        if sev == "fail":
+            out.append(_line(_FAIL, "skills",
+                             "grilling: комплект заявлен полным, но компонент "
+                             "в рантайме не готов (%s)" % msg))
+            out.append(_line("ДЕЙСТВИЕ", "",
+                             "агент: восстановить полный комплект — "
+                             "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full"))
+        return out
+    if sev == "ok":
+        # рантайм полного комплекта: развернуть компонент в рабочую папку
+        src = bootstrap.grilling_dir(root)
+        try:
+            dst = os.path.join(deploy_base, "grilling")
+            shutil.copytree(src, dst,
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            out.append(_line("ИСПРАВЛЕНО", "skills",
+                             "grilling: развёрнут → %s" % dst))
+        except Exception as e:
+            out.append(_line(_FAIL, "skills",
+                             "grilling: копирование не удалось: %s" % str(e)[:120]))
+            out.append(_line("ДЕЙСТВИЕ", "",
+                             "агент: скопировать %s → %s вручную"
+                             % (src, deploy_base)))
+        return out
+    out.append(_line(_FAIL if sev == "fail" else _WARN, "skills",
+                     "grilling: %s" % msg))
+    if sev == "fail":
+        out.append(_line("ДЕЙСТВИЕ", "",
+                         "агент: восстановить компонент полного комплекта — "
+                         "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full"))
+    else:
+        out.append(_line("ДЕЙСТВИЕ", "",
+                         "агент: доложить пользователю, что аналитика "
+                         "неполноценна (самопроверка Шага 2 недоступна); "
+                         "полный комплект — bootstrap.ps1 -Full (Windows) / "
+                         "bootstrap.sh --full"))
+    return out
 
 
 def check_skills(work, extra_bases=None, bundle_dir=None):
     """Скиллы-зависимости полного комплекта.
     tz-1c-style (база тона) — ОБЯЗАТЕЛЕН, разворачивается из bundle.
-    grilling (самопроверка Шага 2, «прожарка») — компонент полного
-    комплекта: скачивается Bootstrap'ом (--full) из официального upstream
-    по пиннутому коммиту; разворачивается из рантайма. Отсутствие не
-    блокирует конвейер (WARN), но означает НЕПОЛНОЦЕННУЮ аналитику —
-    самопроверка «прожарка» недоступна. Unica — MCP-плагин:
+    grilling (самопроверка Шага 2, «прожарка») — обязательный компонент
+    полного комплекта: скачивается Bootstrap'ом (--full) из официального
+    upstream по пиннутому коммиту; разворачивается из рантайма. Сигналы
+    разделены (см. _check_grilling): отсутствие в ПОЛНОМ комплекте — [FAIL],
+    явный отказ --no-grilling или неизвестный комплект — [WARN] с
+    предупреждением о неполноценной аналитике. Unica — MCP-плагин:
     диагностируется отдельно в check_unica (кэш, рантайм, сеть, handshake).
     Портативность (урок 2026-11-19): отсутствующий скилл разворачивается
     САМ в первую базу (рабочую папку) — рабочая папка самодостаточна,
@@ -399,14 +443,15 @@ def check_skills(work, extra_bases=None, bundle_dir=None):
     for name in ("tz-1c-style", "grilling"):
         found = next((b for b in bases
                       if os.path.isfile(os.path.join(b, name, "SKILL.md"))), None)
+        if name == "grilling":
+            out.extend(_check_grilling(found, bases[0]))
+            continue
         if found:
             out.append(_line(_OK, "skills", "%s: %s" % (name, found)))
             continue
-        # источник для разворачивания: tz-1c-style — поставка (bundle),
-        # grilling — рантайм полного комплекта (скачан Bootstrap'ом)
-        src = (os.path.join(bundle_dir, name) if name == "tz-1c-style"
-               else _grilling_runtime_dir())
-        if src and os.path.isdir(src):
+        # источник для разворачивания tz-1c-style — поставка (bundle)
+        src = os.path.join(bundle_dir, name)
+        if os.path.isdir(src):
             try:
                 dst = os.path.join(bases[0], name)
                 shutil.copytree(src, dst)
@@ -418,15 +463,6 @@ def check_skills(work, extra_bases=None, bundle_dir=None):
                                  % (name, str(e)[:120])))
                 out.append(_line("ДЕЙСТВИЕ", "",
                                  "агент: скопировать %s → %s вручную" % (src, bases[0])))
-            continue
-        if name == "grilling":
-            out.append(_line(_WARN, "skills",
-                             "grilling не установлен — самопроверка Шага 2 "
-                             "(«прожарка») недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА"))
-            out.append(_line("ДЕЙСТВИЕ", "",
-                             "агент: доложить пользователю, что аналитика будет "
-                             "неполноценной; установить полный комплект — "
-                             "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full"))
             continue
         out.append(_line(_FAIL, "skills",
                          "%s: не найден ни в одной установке (.zcode/skills, "

@@ -45,6 +45,13 @@ is not normal work. Installing without it is possible only on an explicit
 refusal (`bootstrap.ps1 -NoGrilling` / `bash bootstrap.sh --no-grilling`) and
 is not offered as an equal alternative.
 
+Later checks keep the distinction (they are not interchangeable): a set
+declared **full** with `grilling` missing or damaged reports **`[FAIL]`** and
+must be restored with the full mode before work; only an explicitly declined
+set — or a manifest of the legacy format (schema 1, no install record), whose
+set is **unknown** — reports **`[WARN]`** and is never counted as a confirmed
+full installation.
+
 ## Use
 
 Work goes through the agent: describe the 1С change — the skill builds

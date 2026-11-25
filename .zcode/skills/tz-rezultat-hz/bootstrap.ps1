@@ -6,10 +6,14 @@
 # подтверждения пользователя (exit 4), НИЧЕГО не скачивая.
 #
 # В режиме -Full: скачивает python-build-standalone (pinned-релиз), сверяет
-# SHA-256 с зафиксированным пином, распаковывает, ставит изоляцию
-# (python311._pth + DLL pywin32), затем вызывает bootstrap.py на свежем
-# интерпретаторе — зависимости, format-agent (upstream, пиннутый коммит)
-# и grilling (upstream, пиннутый коммит, MIT).
+# SHA-256 с зафиксированным пином, распаковывает в каталог-КАНДИДАТ
+# (<PY_DIRNAME>.new) и ставит изоляцию (python311._pth + DLL pywin32), затем
+# вызывает bootstrap.py на этом интерпретаторе — зависимости, format-agent
+# (upstream, пиннутый коммит) и grilling (upstream, пиннутый коммит, MIT).
+# Рабочий версионный каталог НЕ трогается: bootstrap.py замещает его
+# кандидатом только после успешной валидации, а прежний переносит в
+# .staging/previous-* (не удаляет). Провал загрузки/сборки оставляет
+# действующий рантайм и манифест без изменений.
 #
 # Пины НИЖЕ ДОЛЖНЫ совпадать с bootstrap.py (PBS_RELEASE / PY_VERSION /
 # SHA-256 win-x64), а перечень компонентов — с components.ru.md.
@@ -20,7 +24,8 @@
 # Запуск:  powershell -ExecutionPolicy Bypass -File bootstrap.ps1 [-Plan] [-Full] [-NoGrilling]
 #   -Plan        — показать перечень компонентов и выйти
 #   -Full        — установить ПОЛНЫЙ комплект (рекомендуется)
-#   -NoGrilling  — НЕ рекомендуется: без grilling (аналитика будет неполноценной)
+#   -NoGrilling  — режим ОСОЗНАННОГО ОТКАЗА: комплект без grilling
+#                  (самопроверка Шага 2 недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА)
 # ============================================================
 param(
     [switch]$Plan,
@@ -66,8 +71,13 @@ if ((Test-Path $SkillRuntime -PathType Container) -or (Test-Writable $SkillDir))
 New-Item -ItemType Directory -Force -Path $RuntimeRoot | Out-Null
 
 $VerDir  = Join-Path $RuntimeRoot $PY_DIRNAME
-$PyDir   = Join-Path $VerDir "python"
+# Каталог-КАНДИДАТ: сборка идёт здесь, рабочий $VerDir не трогается до
+# успешной валидации (bootstrap.py замещает его кандидатом и уносит
+# прежний рабочий каталог в .staging — не удаляя).
+$BuildDir = "$VerDir.new"
+$PyDir   = Join-Path $BuildDir "python"
 $PyExe   = Join-Path $PyDir "python.exe"
+$ActivePy = Join-Path (Join-Path $VerDir "python") "python.exe"
 $Staging = Join-Path $RuntimeRoot ".staging"
 $Arc     = Join-Path $Staging $ARCHIVE
 
@@ -77,8 +87,8 @@ Write-Host "runtime_root: $RuntimeRoot"
 if ($Plan) { Show-Plan; exit 0 }
 
 # --- рантайм уже готов ПОЛНЫМ комплектом? ---
-if (Test-Path $PyExe) {
-    & $PyExe $BootstrapPy --root $RuntimeRoot --check
+if (Test-Path $ActivePy) {
+    & $ActivePy $BootstrapPy --root $RuntimeRoot --check
     if ($LASTEXITCODE -eq 0) { exit 0 }
 }
 
@@ -89,7 +99,9 @@ if (-not $Full -and -not $NoGrilling) {
     exit 4
 }
 if ($NoGrilling) {
-    Write-Host "[ВНИМАНИЕ] установка БЕЗ grilling: самопроверка Шага 2 недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА"
+    Write-Host "[ВНИМАНИЕ] осознанный отказ от обязательного компонента: установка БЕЗ grilling."
+    Write-Host "           самопроверка Шага 2 («прожарка») недоступна, АНАЛИТИКА НЕПОЛНОЦЕННА;"
+    Write-Host "           это НЕ полноценная установка (штатный режим: bootstrap.ps1 -Full)"
 }
 
 # --- скачивание (curl.exe; .part → rename) ---
@@ -108,16 +120,20 @@ if ($got -ne $SHA256) {
 }
 Write-Host "  SHA-256 сверен с пином"
 
-# --- распаковка в версионный каталог (свежий) ---
+# --- распаковка в СВЕЖИЙ каталог-кандидат ---
 # Архив PBS содержит в корне папку python/, поэтому распаковка в
-# $VerDir даёт $VerDir/python/python.exe (как в bootstrap.py).
+# $BuildDir даёт $BuildDir/python/python.exe (как в bootstrap.py).
 # tar берём из System32 (bsdtar): tar из PATH может оказаться MSYS/Git-Bash
 # и не понять путь «C:\…» («Cannot connect to C: resolve failed»).
 $TarExe = Join-Path $env:SystemRoot "System32\tar.exe"
 if (-not (Test-Path $TarExe)) { $TarExe = "tar" }
-if (Test-Path $VerDir) { Remove-Item $VerDir -Recurse -Force }
-New-Item -ItemType Directory -Force -Path $VerDir | Out-Null
-& $TarExe -xzf $Arc -C $VerDir
+if (Test-Path $BuildDir) {
+    # Прежний незавершённый кандидат — ПЕРЕНОСИМ в корзину (не удаляем).
+    $Trash = Join-Path $Staging ("failed-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+    Move-Item $BuildDir $Trash -Force
+}
+New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
+& $TarExe -xzf $Arc -C $BuildDir
 if ($LASTEXITCODE -ne 0) { throw "tar: распаковка не удалась" }
 
 # --- изоляция: python311._pth + DLL pywin32 ---
@@ -133,7 +149,7 @@ foreach ($dll in @("pythoncom311.dll", "pywintypes311.dll")) {
     $src = Join-Path $PyDir "Lib\site-packages\pywin32_system32\$dll"
     if (Test-Path $src) { Copy-Item $src $PyDir -Force }
 }
-Write-Host "  изоляция: $PyExe"
+Write-Host "  изоляция (кандидат): $PyExe"
 
 # --- делегируем bootstrap.py (pip + format-agent + grilling + validate + manifest) ---
 $modeArg = if ($Full) { "--full" } else { "--no-grilling" }
