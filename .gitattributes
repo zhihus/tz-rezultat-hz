@@ -1,0 +1,16 @@
+# Нормализация переводов строк и типы файлов
+* text=auto
+
+# Скрипты — LF, чтобы не ломать запуск на Linux
+*.py  text eol=lf
+*.sh  text eol=lf
+*.bat text eol=crlf
+
+# Бинарные офисные документы
+*.docx binary
+*.pptx binary
+*.xlsx binary
+*.pdf  binary
+
+# Сгенерированные/портируемые артефакты — не считать текстом
+portable/python/** -text

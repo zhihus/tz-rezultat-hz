@@ -1,0 +1,1142 @@
+# Каталог элементов модели документа.
+# Поля: id, level (document|page|formatting), text_element,
+# variability (stable|variable), expected_size, description, detection,
+# parser, attributes, attributes_optional, sample_refs.
+# Обязательные поля: id, level, variability, detection, parser, attributes.
+# sample_refs заполняется после прогона detection по образцам.
+# Присутствие элемента в шаблоне: правило большинства (>= 75% образцов;
+# оформление — пересечение всех). Вариации выносятся пользователю.
+# Стандарты-основания: ГОСТ Р 7.0.8-2013 (определение документа),
+# ГОСТ Р 7.0.97-2016 (формуляр-образец, реквизиты), ГОСТ 7.32-2017
+# (структура отчёта), ГОСТ 2.104/2.301 (ЕСКД: штамп, рамка),
+# ISO 15489 (управление документами), ISO/IEC/IEEE 82079-1 (инструкции),
+# OASIS DITA 1.3 bookmap (frontmatter/body/backmatter).
+
+catalog:
+  # ── Уровень документа ────────────────────────────────────────────────
+  - id: title-page
+    confirmed: samples
+    level: document
+    text_element: false
+    variability: stable
+    expected_size: "первая страница, ~20 строк, порог ±30% (12–30 параграфов)"
+    description: >-
+      Титульный лист: организация, вид документа, код, версия,
+      наименование, грифы согласования/утверждения, город и год.
+    detection: >-
+      Первая страница документа; количество параграфов 12–30; нет
+      inline-изображений тела; есть текст по шаблонам грифов
+      (согласовано/утверждаю) или подписных строк (Разраб./Проверил).
+    parser: >-
+      python-docx: doc.paragraphs[:30]; взять тексты непустых параграфов
+      по порядку; сопоставить строки с атрибутами по паттернам
+      (код документа — регэксп буквенно-цифрового кода, версия — V\\d+,
+      год — \\d{4}).
+    attributes: [organization, doc_kind, doc_code, doc_title, city_year]
+    attributes_optional: [version, approvals, udk_index]
+    sample_refs: []
+
+  - id: performers-list
+    level: document
+    text_element: false
+    variability: variable
+    expected_size: "таблица или список, строки = исполнители (1–20)"
+    description: >-
+      Лист/список исполнителей: кто разработал, проверил, согласовал;
+      должности, фамилии, подписи.
+    detection: >-
+      Заголовок «СОДЕРЖАНИЕ ИСПОЛНИТЕЛЕЙ»/«Исполнители» или таблица с
+      колонками должность/фамилия/подпись в первых 10 страницах.
+    parser: >-
+      python-docx: найти заголовок по тексту; дальше параграфы или
+      table.rows → по строке: роль, ФИО, подпись.
+    attributes: [role, name]
+    attributes_optional: [position, signature, date]
+    sample_refs: []
+
+  - id: abstract
+    level: document
+    text_element: true
+    variability: stable
+    expected_size: "одна страница, 1–5 абзацев"
+    description: >-
+      Реферат/аннотация: сжатое описание назначения и содержания
+      документа (Abstract, Executive Summary).
+    detection: >-
+      Заголовок «РЕФЕРАТ»/«Аннотация»/«Abstract» в первых 10 страницах;
+      после него 1–5 абзацев до следующего заголовка.
+    parser: >-
+      python-docx: собрать текст параграфов между заголовком реферата
+      и следующим заголовком уровня 1.
+    attributes: [text]
+    sample_refs: []
+
+  - id: toc
+    level: document
+    text_element: true
+    variability: variable
+    expected_size: "строк = число заголовков; сильная вариативность"
+    description: >-
+      Содержание (оглавление): перечень разделов с номерами страниц;
+      генерируется из заголовков документа.
+    detection: >-
+      Поле TOC (w:instrText содержит "TOC") или заголовок «СОДЕРЖАНИЕ»,
+      за которым следуют строки «текст … номер страницы».
+    parser: >-
+      python-docx: перебрать параграфы после заголовка; каждую строку
+      разбить регэкспом ^(.*?)\\.{2,}\\s*(\\d+)$ → заголовок, страница.
+    attributes: [section_title, page_number]
+    requires: [numbered-heading]
+    requires_note: >-
+      Оглавление генерируется из заголовков: без нумерованных заголовков
+      (и разделов под них) элемент пуст. Выбор toc автоматически
+      расширяет объём на каркас нумерованных заголовков — с явным
+      докладом пользователю, не молча.
+    sample_refs: []
+
+  - id: illustrations-list
+    level: document
+    text_element: false
+    variability: variable
+    expected_size: "строк = число рисунков"
+    description: "Перечень иллюстраций: список «Рисунок N — название … страница»."
+    detection: >-
+      Заголовок «ПЕРЕЧЕНЬ ИЛЛЮСТРАЦИЙ» или строки по шаблону
+      «Рисунок N» с точками-заполнителями и номером страницы.
+    parser: >-
+      Аналогично toc: регэксп ^(Рисунок\\s+\\d+[—–-].*?)\\.{2,}\\s*(\\d+)$.
+    attributes: [figure_caption, page_number]
+    sample_refs: []
+
+  - id: tables-list
+    level: document
+    text_element: false
+    variability: variable
+    expected_size: "строк = число таблиц"
+    description: "Перечень таблиц: список «Таблица N — название … страница»."
+    detection: >-
+      Заголовок «ПЕРЕЧЕНЬ ТАБЛИЦ» или строки по шаблону «Таблица N»
+      с точками-заполнителями и номером страницы.
+    parser: >-
+      Аналогично illustrations-list: регэксп ^(Таблица\\s+\\d+[—–-].*?)\\.{2,}\\s*(\\d+)$.
+    attributes: [table_caption, page_number]
+    sample_refs: []
+
+  - id: terms-definitions
+    confirmed: samples
+    level: document
+    text_element: true
+    variability: variable
+    expected_size: "пары «термин — определение», 1–50"
+    description: "Термины и определения: таблица или список «термин — расшифровка»."
+    detection: >-
+      Заголовок «Термины и определения»/«Определения»/«Глоссарий»; далее
+      таблица из 2 колонок или список с висячим отступом «термин — текст».
+    parser: >-
+      python-docx: если таблица — table.rows → (cell[0], cell[1]);
+      если список — регэксп ^(\\S[^—-]*?)\\s*[—-]\\s*(.+)$.
+    attributes: [term, definition]
+    sample_refs: []
+
+  - id: abbreviations
+    level: document
+    text_element: true
+    variability: variable
+    expected_size: "пары «аббревиатура — расшифровка», 1–50"
+    description: "Перечень сокращений и обозначений; классика — в начале документа парами абзацев, вариант — раздел «Глоссарий»/«Термины и сокращения» с подписью и таблицей на 2 колонки."
+    detection: >-
+      Заголовок «ПЕРЕЧЕНЬ СОКРАЩЕНИЙ И ОБОЗНАЧЕНИЙ»/«Сокращения»/«Глоссарий»/
+      «Термины и сокращения» (классика — в первых 20% документа, вариант —
+      в середине); далее пары «АББРЕВИАТУРА — расшифровка» абзацами ИЛИ
+      подпись «Таблица N. …» + таблица 2 колонки с шапкой
+      «Термин/сокращение | Определение/расшифровка» или «Термин | Описание».
+    parser: >-
+      python-docx: параграфы после заголовка; регэксп
+      ^([А-ЯA-Z]{2,}[\\dА-ЯA-Z]*)\\s*[—–-]?\\s*(.+)$ → аббревиатура, расшифровка.
+      Табличная форма: блоки секции (вводная строка, подпись Caption,
+      таблица) переносятся как есть, первая строка данных → example_row.
+    attributes: [abbr, expansion]
+    sample_refs: []
+
+  - id: normative-references
+    level: document
+    text_element: false
+    variability: variable
+    expected_size: "нумерованный перечень, 0–30 записей"
+    description: "Нормативные ссылки: перечень стандартов и документов, на которые ссылается данный."
+    detection: >-
+      Заголовок «Нормативные ссылки»/«Нормативные документы»; далее
+      строки, начинающиеся с ГОСТ/ISO/РД.
+    parser: >-
+      python-docx: параграфы после заголовка до следующего заголовка;
+      каждая строка — одна запись.
+    attributes: [reference_text]
+    sample_refs: []
+
+  - id: introduction
+    level: document
+    text_element: true
+    variability: variable
+    expected_size: "1–5 страниц, 2–20 абзацев"
+    description: "Введение: цели, область применения, статус документа."
+    detection: >-
+      Заголовок «ВВЕДЕНИЕ»/«Введение» после начальных разделов
+      (содержание, сокращения).
+    parser: >-
+      python-docx: параграфы между заголовком «Введение» и следующим
+      заголовком уровня 1; каждый абзац — элемент списка text.
+    attributes: [text]
+    sample_refs: []
+
+  - id: body
+    confirmed: samples
+    level: document
+    text_element: true
+    variability: variable
+    expected_size: "5–25 разделов; сильная вариативность (короткое/длинное ТЗ)"
+    description: >-
+      Основная часть: уникальное тело документа; в ТЗ — требования,
+      алгоритмы «если—тогда», рисунки, таблицы.
+    detection: >-
+      Всё между заголовком «ОСНОВНАЯ ЧАСТЬ»/первым нумерованным
+      разделом и «ЗАКЛЮЧЕНИЕ»/«ИСТОЧНИКИ»/приложениями. В бизнес-ТЗ
+      разделы тела: «Задание на разработку», «Бизнес-логика»,
+      «Глоссарий», «Права доступа», «Ограничения и допущения»,
+      «Порядок тестирования» — без отдельной «ОСНОВНОЙ ЧАСТИ».
+    parser: >-
+      Итерировать по document.element.body в порядке документа;
+      каждому элементу сопоставить тип (параграф → стиль, таблица →
+      разбор строк, рисунок → подпись); разделы группировать по
+      заголовкам с иерархической нумерацией.
+    attributes: [sections]
+    sample_refs: []
+
+  - id: conclusion
+    level: document
+    text_element: true
+    variability: variable
+    expected_size: "1–3 страницы"
+    description: "Заключение: итоги, выводы."
+    detection: "Заголовок «ЗАКЛЮЧЕНИЕ»/«Заключение» в последней трети документа."
+    parser: >-
+      python-docx: параграфы между заголовком «Заключение» и следующим
+      заголовком уровня 1.
+    attributes: [text]
+    sample_refs: []
+
+  - id: sources
+    confirmed: samples
+    level: document
+    text_element: true
+    variability: variable
+    expected_size: "нумерованный перечень, 0–50 записей; в конце документа"
+    description: "Список использованных источников: библиографические записи."
+    detection: >-
+      Заголовок «СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ»/«Источники»/
+      «Литература» ближе к концу; далее нумерованные строки.
+    parser: >-
+      python-docx: параграфы после заголовка; регэксп ^(\\d+)\\.?\\s+(.+)$
+      → номер, запись.
+    attributes: [index, reference_text]
+    sample_refs: []
+
+  - id: appendices
+    level: document
+    text_element: true
+    variability: variable
+    expected_size: "0–N приложений, каждое с нового листа"
+    description: >-
+      Приложения: страницы-персонажи с заголовком «ПРИЛОЖЕНИЕ А» и
+      двойной нумерацией (сквозная + А-1).
+    detection: >-
+      Параграф по шаблону ^ПРИЛОЖЕНИЕ\\s+[А-ЯA-Z]\\b или заголовок
+      «ПРИЛОЖЕНИЕ»/«Приложение» после основной части; при разрыве
+      секции — новая секция с другой нумерацией.
+    parser: >-
+      python-docx: от параграфа «ПРИЛОЖЕНИЕ X» до следующего такого же
+      или конца документа; внутри — обычный разбор тела.
+    attributes: [letter, title, content]
+    sample_refs: []
+
+  - id: change-log-sheet
+    level: document
+    text_element: true
+    variability: stable
+    expected_size: "таблица с фиксированными колонками; часто пустая"
+    description: >-
+      Лист регистрации изменений: таблица «Изм. — изменённые листы —
+      основание — подпись — дата»; заполняется жизненным циклом.
+    detection: >-
+      Таблица, шапка которой содержит колонки «Изм.» и «Лист» и
+      «№ докум.»/«Основание».
+    parser: >-
+      python-docx: найти таблицу по шапке; table.rows → словарь
+      колонка → значение; пустые ячейки → None (пропускать явно).
+    attributes: [revision, sheets_affected, reason, date]
+    attributes_optional: [signature]
+    sample_refs: []
+
+  - id: approval-sheet
+    level: document
+    text_element: true
+    variability: stable
+    expected_size: "таблица/строки «роль — имя — подпись — дата»"
+    description: >-
+      Лист согласования: подписи «разработал — проверил — согласовал —
+      утвердил».
+    detection: >-
+      Таблица или блок параграфов с ролями Разраб./Пров./Н.контр./Утв.
+      или «Согласовано»/«Утверждаю».
+    parser: >-
+      python-docx: строки блока/таблицы; регэксп
+      ^(Разраб|Пров|Согла|Утв|Н\\.контр)\\.?\\s+(.+)$ → роль, данные.
+    attributes: [role, name, date]
+    attributes_optional: [signature, position]
+    sample_refs: []
+
+  - id: colophon
+    level: document
+    text_element: false
+    variability: stable
+    expected_size: "1–5 строк в конце или на титуле"
+    description: "Колофон (выходные данные): город, год, версия, контакт."
+    detection: >-
+      Финальная страница: строки «Город — Год», «© организация»,
+      «Версия X.Y» после последнего содержательного блока.
+    parser: >-
+      python-docx: последние 10 непустых параграфов; сопоставить
+      паттернам город/год, копирайт, версия.
+    attributes: [city, year]
+    selectable: false
+    attributes_optional: [copyright, version, contact]
+    sample_refs: []
+
+  - id: cross-references
+    level: document
+    text_element: false
+    variability: variable
+    expected_size: "встречаются по всему телу; количество переменное"
+    description: "Перекрёстные ссылки: «см. п. 4.2», «(Рисунок - 3)» — документ ссылается сам на себя."
+    detection: >-
+      В тексте параграфов регэкспы (см\\.\\s*(п\\.|рис\\.|табл\\.?)\\s*[\\d.А-Я]) |
+      \\(Рисунок\\s*-\\s*\\d+\\) | \\(Таблица\\s*-\\s*\\d+\\).
+    parser: >-
+      Обойти все параграфы; извлечь совпадения регэкспов; для каждого —
+      тип цели (раздел/рисунок/таблица) и её номер.
+    attributes: [ref_type, ref_number]
+    selectable: false
+    sample_refs: []
+
+  - id: numbering-scheme
+    level: document
+    text_element: false
+    variability: stable
+    expected_size: "1 система нумерации на документ"
+    description: >-
+      Правила нумерации объектов: разделы 1 → 1.1 → 1.1.1, рисунки,
+      таблицы, формулы, коды документов (ФР.000.00.00.0-00).
+    detection: >-
+      По заголовкам: наличие иерархических номеров ^(\\d+)(\\.\\d+)*\\s
+      в стилях Heading; по подписям: «Рисунок N», «Таблица N».
+    parser: >-
+      Собрать все заголовки; регэкспом извлечь номера; построить
+      дерево; проверить монотонность нумерации рисунков/таблиц.
+    attributes: [scheme_type]
+    selectable: false
+    attributes_optional: [doc_code_pattern]
+    sample_refs: []
+
+  - id: scope-audience
+    level: document
+    text_element: false
+    variability: stable
+    expected_size: "1–2 абзаца во введении или на титуле"
+    description: "Область действия и целевая аудитория: для кого документ (ISO 82079-1)."
+    detection: >-
+      Во введении или титуле: текст по паттернам «Настоящее …
+      распространяется», «предназначено для», «область применения».
+    parser: >-
+      python-docx: параграфы введения/титула с регэкспом
+      (распространяется|предназначен[оы]? для) → извлечь абзац целиком.
+    attributes: [scope_text, audience]
+    selectable: false
+    sample_refs: []
+
+  - id: signature
+    level: document
+    text_element: false
+    variability: stable
+    expected_size: "блок подписей и/или грифы согласования; строки с ролью, ФИО, датой"
+    description: >-
+      Подписи и грифы — главный реквизит, придающий документу силу
+      («разработал — проверил — согласовал — утвердил», «УТВЕРЖДАЮ»,
+      блок ЗАКАЗЧИК/ИСПОЛНИТЕЛЬ); ГОСТ Р 7.0.97.
+    detection: >-
+      Таблица или блок строк с ролями (Разраб./Пров./Н.контр./Утв.,
+      ЗАКАЗЧИК/ИСПОЛНИТЕЛЬ, Согласовано/Утверждаю) в титуле или конце
+      документа.
+    parser: >-
+      python-docx: строки блока/таблицы → (роль, ФИО, дата); вложенные
+      таблицы проверять cell.tables (cell.text их не видит).
+    attributes: [role, name, date]
+    attributes_optional: [signature, position, org]
+    sample_refs: []
+
+  # ── Уровень страницы ─────────────────────────────────────────────────
+  - id: header
+    level: page
+    text_element: false
+    variability: stable
+    expected_size: "1–5 строк на каждой странице"
+    description: >-
+      Верхний колонтитул: наименование документа/раздела, логотип
+      организации; повторяется на всех или чётных/нечётных страницах.
+    detection: >-
+      python-docx: section.header; есть, если есть непустые параграфы
+      или изображения (is_linked_to_previous == False или текст непуст).
+    parser: >-
+      Для каждой section: header.paragraphs → тексты; header tables
+      при наличии; inline_shapes внутри колонтитула → логотип.
+    attributes: [text]
+    attributes_optional: [logo_image, section_title]
+    sample_refs: []
+
+  - id: footer
+    level: page
+    text_element: false
+    variability: stable
+    expected_size: "1–5 строк на каждой странице"
+    description: "Нижний колонтитул: номер страницы, дата, версия, гриф ограничения доступа."
+    detection: >-
+      python-docx: section.footer содержит непустые параграфы или поля
+      PAGE/NUMPAGES.
+    parser: >-
+      Для каждой section: footer.paragraphs → тексты; найти поля
+      (w:fldChar/w:instrText) → тип поля; текстовые строки → метки.
+    attributes: [text]
+    attributes_optional: [page_number_field, date, version, classification]
+    sample_refs: []
+
+  - id: page-geometry
+    level: page
+    text_element: false
+    variability: stable
+    expected_size: "1 конфигурация на документ (размер, ориентация, поля)"
+    description: >-
+      Геометрия страницы: размер листа (A4/Letter), ориентация, поля
+      (верх/низ/лево/право) — задаётся секцией DOCX; устанавливается
+      по образцам (ГОСТ 2.301, ГОСТ Р 7.0.97).
+    detection: >-
+      python-docx: section.page_width/page_height/orientation и
+      left/right/top/bottom_margin всех секций.
+    parser: >-
+      section → размер и поля в EMU/см; различия секций фиксировать
+      по каждой (titlePg, чётные/нечётные).
+    attributes: [page_size, orientation, margins]
+    attributes_optional: [gutter, header_distance, footer_distance]
+    sample_refs: []
+
+  - id: first-page-diff
+    level: page
+    text_element: false
+    variability: stable
+    expected_size: "флаг titlePg + отличия header/footer первой страницы"
+    description: >-
+      Различие первой страницы (titlePg): у колонтитулов титула свой
+      состав (например, footer пуст) — фиксируется отдельно от обычных
+      страниц.
+    detection: >-
+      python-docx: section.different_first_page_header_footer == True;
+      сравнить header/footer первой страницы с обычными.
+    parser: >-
+      Для каждой секции: first_page_header/first_page_footer → те же
+      поля, что у header/footer; отличия — в spec.first_page.
+    attributes: [titlepg, first_header, first_footer]
+    sample_refs: []
+
+  - id: page-number
+    level: page
+    text_element: false
+    variability: stable
+    expected_size: "1 элемент в нижнем колонтитуле (реже верхнем)"
+    description: >-
+      Номер страницы: поле PAGE в колонтитуле; на титуле не ставится,
+      но нумерация считается.
+    detection: >-
+      В header/footer есть поле w:instrText с PAGE или NUMPAGES.
+    parser: >-
+      Разобрать XML колонтитула: найти instrText → 'PAGE'; отметить
+      выравнивание параграфа (центр/справа).
+    attributes: [field_type, alignment]
+    attributes_optional: [format, starting_number]
+    sample_refs: []
+
+  - id: eskd-frame
+    level: page
+    text_element: false
+    variability: stable
+    expected_size: "1 рамка на страницу"
+    description: "Рамка листа по ЕСКД (ГОСТ 2.301): прямоугольная рамка с отступами 20/5 мм."
+    detection: >-
+      В XML секции — pgBorders, или в колонтитуле — таблица/фигура
+      прямоугольной формы по краю листа.
+    parser: >-
+      Разобрать sectPr → pgBorders (offsets), либо геометрию фигуры
+      колонтитула → размеры рамки.
+    attributes: [border_type, offsets_mm]
+    selectable: false
+    sample_refs: []
+
+  - id: stamp
+    level: page
+    text_element: false
+    variability: stable
+    expected_size: "таблица 15×26 мм в правом нижнем углу (форма 1 ГОСТ 2.104)"
+    description: >-
+      Основная надпись (штамп): таблица с обозначением документа,
+      наименованием, масштабом, литерой, подписями.
+    detection: >-
+      Таблица в нижнем колонтитуле или в конце документа; шапка/строки
+      содержат «Разраб.», «Пров.», «Лит.», «Масса», «Масштаб».
+    parser: >-
+      python-docx: table.rows/cells → сопоставить меткам формы 1;
+      значения → параметры.
+    attributes: [doc_designation, doc_name]
+    selectable: false
+    attributes_optional: [scale, mass, material, signatures]
+    sample_refs: []
+
+  - id: page-type-rules
+    level: page
+    text_element: false
+    variability: stable
+    expected_size: "набор правил, применимых к каждой странице"
+    description: >-
+      Типизация страниц: обычная, титульная, оглавление, страницы-
+      персонажи, приложения, пустые-обязательные; тип задаёт правила
+      парсинга.
+    detection: >-
+      Классификация страницы: индекс в документе (первая → титул),
+      наличие TOC-строк (→ оглавление), наличие «ПРИЛОЖЕНИЕ X»
+      (→ приложение), таблица изменений (→ персонаж), иначе обычная.
+    parser: >-
+      Прогнать детекторы по порядку: title-page → toc → appendices →
+      change-log-sheet → approval-sheet → обычная; первый совпавший
+      определяет тип и парсер страницы.
+    attributes: [page_type]
+    selectable: false
+    sample_refs: []
+
+  # ── Уровень оформления ───────────────────────────────────────────────
+  - id: paragraph
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "основная масса параграфов документа"
+    description: "Абзац: базовая единица текста; отступ первой строки или отбивка между абзацами."
+    detection: >-
+      python-docx: paragraph.style.name == 'Normal'/'Обычный' (или
+      без списка/заголовка) и непустой текст.
+    parser: >-
+      paragraph.text → текст; paragraph.paragraph_format →
+      first_line_indent, space_before/after, alignment.
+    attributes: [text]
+    selectable: false
+    attributes_optional: [first_line_indent, spacing]
+    sample_refs: []
+
+  - id: line-spacing
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "1–3 значения на документ"
+    description: "Межстрочный и межабзацный интервалы: одинарный, полуторный, точный в пунктах."
+    detection: >-
+      У большинства параграфов paragraph_format.line_spacing отличен
+      от None/1.0, либо space_after > 0.
+    parser: >-
+      Собрать распределение line_spacing/space_after по параграфам;
+      доминирующее значение — интервал документа.
+    attributes: [line_spacing, space_after]
+    selectable: false
+    sample_refs: []
+
+  - id: alignment
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "1–3 значения на документ (по ширине — доминирует)"
+    description: "Выравнивание: по левому краю, по ширине, по центру, по правому краю."
+    detection: >-
+      paragraph_format.alignment у параграфов; None = по умолчанию
+      (обычно слева/по ширине в зависимости от стиля).
+    parser: >-
+      Собрать распределение alignment; None резолвить по стилю
+      paragraph.style.paragraph_format.alignment.
+    attributes: [alignment]
+    selectable: false
+    sample_refs: []
+
+  - id: font-family
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "1–2 гарнитуры на документ"
+    description: "Гарнитура: Times New Roman, Arial и т.п."
+    detection: >-
+      style.font.name у Normal/Обычный и Heading-стилей; либо
+      run.font.name у большинства run'ов.
+    parser: >-
+      Собрать множество font.name по стилям и run'ам (None →
+      резолвить вверх по иерархии стилей до темы документа).
+    attributes: [font_name]
+    selectable: false
+    sample_refs: []
+
+  - id: font-size
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "2–4 кегля: основной, заголовки, сноски, колонтитулы"
+    description: "Кегль: размер шрифта основного текста и служебных элементов."
+    detection: >-
+      run.font.size / style.font.size у параграфов документа.
+    parser: >-
+      Распределение размеров по типам параграфов (тело/заголовок/
+      подпись); размер в полупунктах (Pt).
+    attributes: [size_pt]
+    selectable: false
+    sample_refs: []
+
+  - id: bold-italic-underline
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "выделения внутри абзацев; количество переменное"
+    description: "Начертания: жирный, курсив, подчёркивание, жирный курсив."
+    detection: >-
+      run.bold/run.italic/run.underline == True у части run'ов.
+    parser: >-
+      Внутри параграфа перебрать runs; для каждого — текст + флаги
+      начертания; склеить соседние runs с одинаковыми флагами.
+    attributes: [text, bold, italic, underline]
+    selectable: false
+    sample_refs: []
+
+  - id: caps
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "заголовки разделов и шапки — в КАПСе"
+    description: "Верхний регистр: КАПС для заголовков разделов («СОДЕРЖАНИЕ», «ВВЕДЕНИЕ»), шапок таблиц."
+    detection: >-
+      Параграф целиком в верхнем регистре: text == text.upper() и есть
+      буквы; либо run.font.all_caps.
+    parser: >-
+      Для каждого параграфа: флаг all-caps; сохранить вместе со стилем
+      (заголовок/шапка таблицы/прочее).
+    attributes: [text, context]
+    selectable: false
+    sample_refs: []
+
+  - id: heading
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "уровни 1–4; количество = число разделов"
+    description: "Заголовки: иерархическая структура документа; различаются кеглем, начертанием, КАПСом, отбивками."
+    detection: >-
+      paragraph.style.name соответствует 'Heading N' / 'Заголовок N'
+      (или outline level в XML).
+    parser: >-
+      paragraph.style.name → уровень N; paragraph.text → текст;
+      paragraph.outline_level при наличии.
+    attributes: [level, text]
+    sample_refs: []
+
+  - id: numbered-heading
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "у большинства заголовков техдока"
+    description: "Нумерация заголовков: 1 → 1.1 → 1.1.1 — иерархическая арабская; главный маркер техдока."
+    detection: >-
+      Текст заголовка начинается с ^(\\d+)(\\.\\d+)*\\s, либо numPr в
+      pPr с многоуровневой нумерацией.
+    parser: >-
+      Регэксп извлечь номер → список целых; глубина = длина списка;
+      проверить преемственность с предыдущим заголовком.
+    attributes: [number_parts, level]
+    sample_refs: []
+
+  - id: bulleted-list
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "группы по 2–20 пунктов"
+    description: "Маркированные списки: буллеты «—», «•», «▪»."
+    detection: >-
+      paragraph.style.name содержит 'List Bullet'/'Список', либо numPr
+      с numFmt bullet, либо текст начинается с маркера.
+    parser: >-
+      Идти по параграфам; соседние параграфы со стилем списка →
+      группа; каждый пункт — текст без маркера.
+    attributes: [items]
+    attributes_optional: [bullet_char]
+    sample_refs: []
+
+  - id: numbered-list
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "группы по 2–20 пунктов"
+    description: "Нумерованные списки: 1), 2) или а), б)."
+    detection: >-
+      paragraph.style.name содержит 'List Number'/'Нумерованный', либо
+      numPr с numFmt decimal/lowerLetter, либо текст с ^\\d+\\)\\s.
+    parser: >-
+      Аналогично bulleted-list; номер извлечь из текста или из numPr.
+    attributes: [items, numbers]
+    sample_refs: []
+
+  - id: multilevel-list
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "вложенность 2–4 уровня"
+    description: "Многоуровневые списки: вложенность с разными маркерами уровней."
+    detection: >-
+      numPr с ilvl > 0, либо отступы left_indent, возрастающие между
+      соседними пунктами списка.
+    parser: >-
+      Пунктам списка сопоставить ilvl/indent → построить дерево
+      вложенности.
+    attributes: [tree]
+    attributes_optional: [max_depth]
+    sample_refs: []
+
+  - id: term-definition-list
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "пары «термин — расшифровка» с висячим отступом"
+    description: "Перечисления-определения: «термин — его расшифровка», классика для терминов и сокращений."
+    detection: >-
+      Параграфы с текстом по регэкспу ^(\\S[^—-]{1,40}?)\\s*[—–-]\\s*(.+)$
+      вне заголовков.
+    parser: >-
+      Регэксп разбить строку → термин, расшифровка; сгруппировать
+      подряд идущие пары.
+    attributes: [term, definition]
+    sample_refs: []
+
+  - id: table
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "2–40 строк, 2–10 колонок"
+    description: "Таблица: строки/столбцы — самый ёмкий элемент техдока."
+    detection: >-
+      python-docx: element в document.tables (или таблица в header/
+      footer).
+    parser: >-
+      table.rows → каждая строка: [cell.text.strip() for cell in
+      row.cells]; учесть объединения ячеек (gridSpan/vMerge).
+    attributes: [rows, columns]
+    attributes_optional: [merged_cells]
+    sample_refs: []
+
+  - id: table-header
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "1 строка (реже 2) на таблицу"
+    description: "Шапка таблицы: первая строка, обычно жирная, иногда с заливкой."
+    detection: >-
+      Первая строка таблицы: все runs.bold == True, или
+      cell.shading (w:shd) с заливкой, или table.first_row включён.
+    parser: >-
+      Взять первую строку; собрать тексты ячеек + флаги жирности/
+      заливки.
+    attributes: [cells]
+    attributes_optional: [shading, bold]
+    sample_refs: []
+
+  - id: table-caption
+    level: formatting
+    text_element: true
+    variability: stable
+    expected_size: "1 подпись на таблицу, над таблицей"
+    description: "Номер и название таблицы: «Таблица 3 — Роли пользователей» над таблицей."
+    detection: >-
+      Параграф, предшествующий таблице, с текстом по регэкспу
+      ^Таблица\\s+[\\d.]+\\s*[—–-].
+    parser: >-
+      Регэксп извлечь номер и название; связать с последующей
+      таблицей.
+    attributes: [number, title]
+
+  - id: table-rights
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "таблица 2-6 колонок: роль/должность -> права"
+    description: "Таблица прав доступа: роли/должности и их права к объектам."
+    detection: >-
+      Таблица в разделе «Права доступа»/«Роли»/«Права»; заголовки колонок
+      «Роль», «Права», «Доступ», «Объект», «Функционал».
+    parser: >-
+      python-docx: table.rows -> cells; колонки сопоставляются по
+      заголовкам (универсально, без имён объектов).
+    attributes: [role, object, permission]
+    sample_refs: []
+
+  - id: table-testing
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "таблица 2-5 колонок: шаг -> действие -> результат"
+    description: >-
+      Таблица порядка тестирования и приёмки: шаги проверки и
+      ожидаемый результат.
+    detection: >-
+      Таблица в разделе «Порядок тестирования»/«Тестирование»/«Приёмка»;
+      заголовки колонок «Шаг», «Действие», «Результат», «Тест».
+    parser: >-
+      python-docx: table.rows -> cells; колонки сопоставляются по
+      заголовкам.
+    attributes: [step, action, expected_result]
+    sample_refs: []
+    sample_refs: []
+
+  - id: figure
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "0–N рисунков на документ"
+    description: "Иллюстрация (скриншот, схема): вставка в разрыв потока."
+    detection: >-
+      В run параграфа есть drawing/w:object (inline или anchored), или
+      paragraph содержит blipFill в XML.
+    parser: >-
+      Найти w:drawing → docPr (имя, описание); тип inline/anchor;
+      размеры (extent cx/cy).
+    attributes: [image_type, size]
+    attributes_optional: [name, description]
+    sample_refs: []
+
+  - id: figure-caption
+    level: formatting
+    text_element: true
+    variability: stable
+    expected_size: "1 подпись на рисунок, под рисунком"
+    description: "Подпись к рисунку: «Рисунок 5 — Форма документа» под рисунком."
+    detection: >-
+      Параграф, следующий за параграфом с изображением, с текстом по
+      регэкспу ^Рисунок\\s+[\\d.]+\\s*[—–-] (или стиль Caption/Подпись).
+    parser: >-
+      Регэксп извлечь номер и название; связать с предшествующим
+      рисунком.
+    attributes: [number, title]
+    sample_refs: []
+
+  - id: formula
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "0–N формул; номер в скобках справа"
+    description: "Нумерованные формулы: номер в круглых скобках по правому краю строки."
+    detection: >-
+      В параграфе есть m:oMath (OMML) или текст завершается
+      \\((\\d+(?:\\.\\d+)?)\\)$ при выравнивании по правому краю.
+    parser: >-
+      Извлечь OMML-текст или текст формулы; номер — из скобок в конце.
+    attributes: [number, content]
+    sample_refs: []
+
+  - id: modal-emphasis
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "встречается по всему телу ТЗ"
+    description: >-
+      Модальные выделения: «обязательно», «не допускается»,
+      «рекомендуется» — курсивом/жирным; нормированные слова (ISO).
+    detection: >-
+      В тексте параграфов регэксп
+      (обязательн[оы][а-я]*|не допускается|необходимо|рекомендуется) с
+      начертанием (bold/italic) у соответствующего run.
+    parser: >-
+      Обойти runs; совпадения регэкспа → слово + флаг начертания +
+      позиция в параграфе.
+    attributes: [word, emphasis]
+    selectable: false
+    sample_refs: []
+
+  - id: cross-ref
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "единичный экземпляр внутри текста"
+    description: "Внутренняя перекрёстная ссылка: «см. п. 4.2», «(Рисунок - 3)»."
+    detection: >-
+      В тексте run или в w:fldSimple/w:instrText с REF/NOTEREF, либо
+      регэксп (см\\.\\s*п\\.?\\s*[\\d.]+|\\(Рисунок\\s*-\\s*\\d+\\)).
+    parser: >-
+      Если поле REF — цель по instrText; иначе регэксп → тип цели,
+      номер.
+    attributes: [ref_type, ref_number]
+    selectable: false
+    sample_refs: []
+
+  - id: footnote
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "0–N сносок на документ; внизу страницы с чертой"
+    description: "Сноска: надстрочный знак в тексте, текст внизу страницы за отделительной чертой."
+    detection: >-
+      В footnotes.xml есть записи; в тексте — ссылки w:footnoteReference.
+    parser: >-
+      python-docx не поддерживает напрямую: разобрать word/footnotes.xml
+      → id, текст; в document.xml найти w:footnoteReference w:id.
+    attributes: [id, text]
+    selectable: false
+    sample_refs: []
+
+  - id: hyperlink
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "0–N на документ"
+    description: "Внешняя гиперссылка: синий подчёркнутый текст с адресом."
+    detection: >-
+      В параграфе есть w:hyperlink с r:id, адрес в document.xml.rels.
+    parser: >-
+      Для каждого w:hyperlink: rels[rid].target_ref → адрес;
+      внутренний текст → якорь.
+    attributes: [url, anchor_text]
+    selectable: false
+    sample_refs: []
+
+  - id: toc-line
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "строки оглавления; точки-заполнители + номер страницы"
+    description: "Строка оглавления: «текст заголовка ……… номер страницы»; пара «заголовок → номер»."
+    detection: >-
+      Параграф со стилем TOC N / «Оглавление N», либо текст с
+      табуляцией точками и числом в конце.
+    parser: >-
+      Регэксп ^(.*?)\\.{2,}\\s*(\\d+)$ или табуляция с leader dots →
+      заголовок, страница.
+    attributes: [section_title, page_number, toc_level]
+    selectable: false
+    sample_refs: []
+
+  - id: callout
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "0–N врезок на документ"
+    description: >-
+      Врезка (callout): выделенный бокс «Важно», «Примечание»,
+      предупреждение — повторяющийся элемент руководств.
+    detection: >-
+      Параграф/таблица с заливкой (w:shd), рамкой (pBdr) или текстом по
+      паттернам «Важно|Внимание|Опасно|Примечание».
+    parser: >-
+      Извлечь тип врезки (метка), текст содержимого, признак заливки/
+      рамки.
+    attributes: [kind, text]
+    sample_refs: []
+
+  - id: note-block
+    level: formatting
+    text_element: true
+    variability: variable
+    expected_size: "0–N примечаний на документ"
+    description: "Примечание: «Примечание — …» мелким кеглем после пункта."
+    detection: >-
+      Параграф с текстом по регэкспу ^Примечание\\s*[—–-] и/или кеглем
+      меньше основного.
+    parser: >-
+      Регэксп отделить метку «Примечание» от текста; зафиксировать
+      размер шрифта.
+    attributes: [text, font_size]
+    sample_refs: []
+
+  - id: user-message-emphasis
+    level: formatting
+    text_element: true
+    variability: fixed-if-present
+    expected_size: "конвенция: 1 на документ (мажорита по образцам)"
+    description: >-
+      Выделение сообщения пользователю в тексте (naming-and-emphasis-
+      universal): курсив и/или цвет, отличный от шрифта тела. Выводится
+      автоматически из образцов; задавать вопрос пользователю не нужно.
+    detection: >-
+      Run в абзаце ТЕЛА (не заголовок, не подпись «Рисунок - N»/
+      «Таблица - N») с w:i и/или w:color ≠ auto/чёрный.
+    parser: >-
+      Мажорита по кандидатам (extract_spec._derive_message_emphasis):
+      italic — большинство курсивных; color — самый частый не-чёрный.
+      Нет кандидатов → spec.meta.message_emphasis = null.
+    attributes: [italic, bold, color]
+    sample_refs: []
+
+  - id: separator-line
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "0–N линий на документ"
+    description: "Горизонтальная линия-разделитель между смысловыми блоками."
+    detection: >-
+      Параграф с pBdr (bottom border) без текста, либо текст из
+      повторяющихся символов «—»/_/═.
+    parser: >-
+      Зафиксировать тип (граница параграфа/символьная линия) и позицию.
+    attributes: [kind]
+    selectable: false
+    sample_refs: []
+
+  - id: page-break
+    level: formatting
+    text_element: false
+    variability: variable
+    expected_size: "0–N разрывов; pageBreakBefore у стилей заголовков"
+    description: >-
+      Разрывы страниц: явный w:br type=page, pageBreakBefore у стилей
+      (например, H1 с нового листа) и разрывы секций.
+    detection: >-
+      В параграфах: w:br[@w:type='page'], pPr/pageBreakBefore; в стилях —
+      pageBreakBefore; sectPr — разрыв секции.
+    parser: >-
+      Обход параграфов → тип разрыва и позиция; для стилей — проверить
+      style.paragraph_format.page_break_before.
+    attributes: [kind, position]
+    attributes_optional: [style_page_break_before]
+    sample_refs: []
+
+  - id: blank-page
+    level: formatting
+    text_element: false
+    variability: stable
+    expected_size: "0–2 на документ; перед разделами или в конце"
+    description: "Пустая страница-разделитель: новый раздел с нового листа; последний лист с подписями обязателен даже пустой."
+    detection: >-
+      Разрыв страницы/секции (w:br type=page, sectPr) с отсутствием
+      содержимого до следующего содержательного параграфа.
+    parser: >-
+      При обходе тела фиксировать пустые диапазоны между разрывами →
+      пометить как пустые страницы.
+    attributes: [position]
+    selectable: false
+    sample_refs: []
+
+  # ── Технические ТЗ (E-50): описания объектов и реквизитов ───────────
+  # ГЛАВНОЕ отличие тех-ТЗ — большой объём технического описания
+  # объектов и их реквизитов (утверждено пользователем 2026-11-16).
+  - id: requisites-list
+    confirmed: samples
+    level: page
+    text_element: true
+    variability: variable
+    expected_size: "список 3–8 пар «имя/синоним/тип/…» на один реквизит"
+    description: >-
+      Описание нового реквизита/параметра списком-парами: имя,
+      синоним, тип (ссылка на объект конфигурации), размещение,
+      заполнение, отбор, видимость. ГЛАВНЫЙ маркер тех-ТЗ.
+    detection: >-
+      Серия элементов списка, каждый начинается со слова «имя»,
+      «синоним», «тип», «размещение», «заполнение», «отбор»,
+      «видимость», «реквизит» с последующим тире/дефисом.
+    parser: >-
+      Обход тела: элементы списка, текст которых начинается с одного
+      из слов-маркеров → пара «ключ – значение» (разделитель — тире
+      любого начертания). Группы подряд идущих пар = один реквизит.
+    attributes: [name, synonym, type]
+    attributes_optional: [placement, filling, filter, visibility]
+    sample_refs: []
+
+  - id: form-change
+    confirmed: samples
+    level: page
+    text_element: true
+    variability: variable
+    expected_size: "абзацы/списки, 1–10 действий на форму"
+    description: >-
+      Описание изменения существующей формы/отчёта/АРМ: добавить
+      команду/колонку/группу, изменить логику, переименовать; с
+      указанием точечного пути метаданных (Обработка.X.Форма.Y).
+    detection: >-
+      Раздел с заголовком «изменение …» (документа/отчёта/формы/АРМ)
+      ИЛИ абзацы, начинающиеся с «Добавить/Изменить/Переименовать/
+      Настроить», рядом с точечным путём метаданных.
+    parser: >-
+      Абзацы и списки раздела целиком; пути метаданных (Документ.X.Y,
+      Обработка.X.Форма.Y) — не менять, конвейер не переформатирует.
+    attributes: [target, action]
+    attributes_optional: [metadata_path, condition]
+    sample_refs: []
+
+  - id: new-roles-text
+    confirmed: samples
+    level: page
+    text_element: true
+    variability: variable
+    expected_size: "абзацы, 1–5 ролей (текстом, без таблицы прав)"
+    description: >-
+      Раздел «Описание новых ролей» тех-ТЗ: роли перечисляются ТЕКСТОМ
+      (в отличие от бизнес-ТЗ, где права — таблица с колонками
+      Роль/Должность/Профиль).
+    detection: >-
+      Заголовок уровня 1 с «роль» в тексте и отсутствие таблицы прав
+      в разделе (или явный текст «…не предполагается»).
+    parser: >-
+      Абзацы раздела целиком; имя роли — по паттерну префикса
+      конвенции spec.meta.naming (выводится из выгрузки расширения); роли сверять с выгрузкой конфигурации
+      отдельно (lint G6).
+    attributes: [role_name]
+    attributes_optional: [purpose]
+    sample_refs: []
+
+  - id: example-data-table
+    confirmed: samples
+    level: page
+    text_element: false
+    variability: variable
+    expected_size: "таблица 2–15 колонок, строки = примеры данных"
+    description: >-
+      Пример-таблица тех-ТЗ: как заполняются новые данные (например,
+      «реквизит/тип/заполнение» или широкие примеры расчёта на 11–15
+      колонок). В отличие от бизнес-ТЗ, строк примера может быть
+      несколько.
+    detection: >-
+      Таблица в разделе тех-ТЗ (после описания реквизитов/алгоритма);
+      заголовки содержат «тип», «заполнение», «реквизит» или
+      расчётные колонки.
+    parser: >-
+      Таблица целиком; первая строка данных → example_row; ширины
+      колонок — из образца (широкие 11–15 колонок не сворачивать).
+    attributes: [columns, rows]
+    attributes_optional: [example_row, widths]
+    sample_refs: []
+
+# Подсказки разделов: ключ — подстрока названия раздела (lowercase),
+# значение — текст серой подсказки. Данные, не код: добавление ключей
+# не требует правки конвейера.
+hints:
+  "глоссарий": "ПОДСКАЗКА: заполните таблицу терминов и их описаний."
+  "реквизит": "ПОДСКАЗКА: для каждого реквизита — имя, синоним, тип (объект конфигурации), размещение, заполнение."
+  "изменение": "ПОДСКАЗКА: что именно меняется в форме/отчёте/документе и точечный путь метаданных."
+  "новых ролей": "ПОДСКАЗКА: перечислите новые роли текстом и их назначение."
+  "алгоритм": "ПОДСКАЗКА: опишите алгоритм по шагам; условия — в форме «если … тогда …»."
+  "права": "ПОДСКАЗКА: перечислите должности, роли и профили доступа."
+  "доступ": "ПОДСКАЗКА: перечислите должности, роли и профили доступа."
+  "тестиров": "ПОДСКАЗКА: опишите действия и ожидаемый результат для приёмки."
+  "приемк": "ПОДСКАЗКА: опишите действия и ожидаемый результат для приёмки."
+  "ограничения": "ПОДСКАЗКА: перечислите ограничения и допущения (по одному в строке)."
+  "допущ": "ПОДСКАЗКА: перечислите ограничения и допущения (по одному в строке)."
+  "источники": "ПОДСКАЗКА: укажите функциональную модель (или протокол) и описание задачи."

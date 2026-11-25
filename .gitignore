@@ -1,0 +1,20 @@
+# Рабочие файлы (скрипты, рендеры, отчёты) — на любом уровне
+**/temp/
+
+# Файлы-замки Office (Word/Excel/PowerPoint)
+~$*
+
+# Установленный рантайм скилла — восстанавливается bootstrap.ps1/.sh|py
+.zcode/skills/tz-rezultat-hz/runtime/
+.zcode/skills/tz-rezultat-hz/portable/
+portable/python/
+
+# Python-кэш
+__pycache__/
+
+# Логи
+*.log
+
+# Сторонние бандлы не распространяются в этом репозитории
+.zcode/skills/tz-rezultat-hz/bundle/format-agent-skill/
+.zcode/skills/tz-rezultat-hz/bundle/grilling/

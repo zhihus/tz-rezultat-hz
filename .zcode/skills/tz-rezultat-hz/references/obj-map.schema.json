@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "obj-map.schema.json",
+  "title": "Карта объектов тех-ТЗ (tech-tz-map.ru.md §2)",
+  "type": "object",
+  "required": ["doc_code", "objects", "forms", "backend", "roles"],
+  "additionalProperties": true,
+  "properties": {
+    "doc_code": {"type": "string", "minLength": 1, "description": "Код доработки, напр. ФР.000.00.00.0-62"},
+    "objects": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/object"}
+    },
+    "forms": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/form"}
+    },
+    "backend": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/backend"}
+    },
+    "roles": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "decisions": {"type": "array", "items": {"$ref": "#/definitions/decision"}},
+    "deps": {
+      "type": "array",
+      "description": "Явные зависимости «зависимое → требуется» (пути метаданных или id новых объектов)",
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "properties": {
+          "from": {"type": "string"},
+          "to": {"type": "string"}
+        }
+      }
+    }
+  },
+  "definitions": {
+    "object": {
+      "type": "object",
+      "required": ["id", "kind", "status", "synonym", "attrs"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[А-Яа-яёЁA-Za-z0-9_]+$", "description": "Имя объекта конфигурации — идентификатор 1С, без пробелов"},
+        "kind": {"enum": ["РегистрСведений", "РегистрНакопления", "Справочник", "Документ", "Перечисление", "Отчет", "Обработка", "РегистрРасчета", "Константа", "ПланВидовХарактеристик", "ПВХ"]},
+        "status": {"enum": ["новый", "доработка", "существующий"]},
+        "synonym": {"type": "string", "minLength": 1},
+        "attrs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {"type": "string", "pattern": "^[А-Яа-яёЁA-Za-z0-9_]+$"},
+              "synonym": {"type": "string"},
+              "type": {"type": "string", "minLength": 1, "description": "Как в конфигураторе: «Дата (состав даты — „Месяц“)», «Булево», «СправочникСсылка.X», «Строка (10)»"},
+              "note": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "form": {
+      "type": "object",
+      "required": ["owner", "name", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "owner": {"type": "string", "pattern": "^(Документ|Справочник|Обработка|Отчет|РегистрСведений|РегистрНакопления)\\.[А-Яа-яёЁA-Za-z0-9_]+$"},
+        "name": {"type": "string"},
+        "status": {"enum": ["новая", "доработка", "существующая"]},
+        "elements": {"type": "array", "items": {"type": "string"}, "description": "Задействованные существующие элементы формы"},
+        "new_elements": {"type": "array", "items": {"type": "string"}},
+        "changed_elements": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "backend": {
+      "type": "object",
+      "required": ["trigger", "target", "what", "scenario"],
+      "additionalProperties": false,
+      "properties": {
+        "trigger": {"enum": ["форма", "расписание", "проведение", "событие"]},
+        "target": {"type": "string", "description": "Путь метаданных или id нового объекта"},
+        "what": {"type": "string"},
+        "period": {"type": "string", "description": "Для trigger=расписание: периодичность"},
+        "scenario": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^(Дано|Когда|Тогда|И):? "},
+          "description": "Русский Gherkin (диалект Vanessa Automation), минимум один шаг «Когда» и один «Тогда»"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": ["question", "chosen", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "question": {"type": "string"},
+        "chosen": {"type": "string"},
+        "alternative": {"type": "string", "description": "Отвергнутая альтернатива; отсутствие — красный флаг (модель выбирает, а не выдумывает)"},
+        "reason": {"type": "string"},
+        "v8std": {"type": "string", "description": "Ссылка на номер/название стандарта its.1c.ru/v8std"}
+      }
+    }
+  }
+}
