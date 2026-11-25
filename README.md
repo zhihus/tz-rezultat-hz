@@ -1,10 +1,37 @@
 # tz-rezultat-hz — 1С Specification (ТЗ) Template Skill
 
-A skill for 1С analysts: a data-driven pipeline — TZ samples →
-`spec.json` → dense DOCX template → two gates (structural + visual);
-stage 2 fills the template with business-ТЗ text from a retouch
-description. The skill lives in
-[`.zcode/skills/tz-rezultat-hz/`](.zcode/skills/tz-rezultat-hz/SKILL.md).
+**A tool for the agent-driven development of technical specifications (ТЗ).**
+It is meant to be used together with an AI agent that does most of the work
+itself. Русская версия — [`README.ru.md`](README.ru.md).
+
+## How it works
+
+You provide the material; the agent:
+
+- analyses what you have provided;
+- studies the ТЗ samples you supplied and uses them as a reference;
+- asks you questions when the input data is not enough;
+- shapes the structure and the content of the specification;
+- runs the checks and reworks the result.
+
+## Your role
+
+You supply what the agent cannot know by itself: ТЗ samples and examples,
+answers to clarifying questions, the description of business processes and
+requirements — other input data and expert knowledge.
+
+You are not expected to do the analytical or the document work by hand: the
+agent does it. You step in where your knowledge, your decisions and your
+confirmation of the result are needed.
+
+## What the tool does not do
+
+- It does **not** work fully autonomously: the process cannot be finished
+  without your answers and your confirmation of the result.
+- The agent does **not** know your enterprise on its own: configuration
+  specifics, local rules and exceptions come only from your input.
+- The quality of the result depends directly on the samples, descriptions and
+  answers you provide — thin input gives a thin specification.
 
 > **Platform support (temporary): Windows only.** This release installs and
 > runs on Windows (`win-x64`). Linux is **not supported yet**: `bootstrap.sh`
@@ -66,6 +93,7 @@ the ТЗ template and fills it. Entry point and step-by-step protocol —
 
 ## Contents
 
+- `README.md` / [`README.ru.md`](README.ru.md) — this description (EN / RU).
 - `.zcode/skills/tz-rezultat-hz/SKILL.md` — the skill's route and rules.
 - `bootstrap.ps1` / `bootstrap.py` — runtime install (Windows only for now).
   `bootstrap.sh` is the future Linux entry point; it is present in the tree
@@ -76,6 +104,10 @@ the ТЗ template and fills it. Entry point and step-by-step protocol —
 - `bundle/tz-1c-style/` — base tone layer (MIT).
 
 ## Documentation
+
+Technically, the pipeline is: TZ samples → `spec.json` → dense DOCX template →
+two gates (structural + visual); stage 2 fills the template with business-ТЗ
+text from a retouch description.
 
 - Document model & parsing method:
   [`references/document-model.ru.md`](.zcode/skills/tz-rezultat-hz/references/document-model.ru.md)
