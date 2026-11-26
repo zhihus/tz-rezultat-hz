@@ -38,7 +38,7 @@ def _line(status, name, detail=""):
 
 
 _HARNESS = {
-    "zcode": "ZCode — инструмент вопросов + documents:visual-judge доступны",
+    "zcode": "ZCode выбран; AskUserQuestion и documents:visual-judge требуют проверки в активной сессии",
     "claude-code": "Claude Code — вопросы инструментом, визуальная приёмка постранично",
     "codex": "Codex — вопросы ТОЛЬКО текстом в конце ответа, приёмка постранично",
     "other": "другой: вопросы ТОЛЬКО текстом в конце ответа, визуальная приёмка постранично",
@@ -50,6 +50,20 @@ def check_harness(harness):
     if detail is None:
         line = _line(_FAIL, "харнесс", "неизвестное значение --harness: %s"
                      " (Unica: zcode|claude-code|codex, или other)" % harness)
+    elif harness == "zcode":
+        # Standalone preflight cannot inspect the live session tool pool or
+        # ZCode application settings. Never report AskUserQuestion as available
+        # merely because the user selected --harness zcode.
+        line = _line(_WARN, "харнесс", detail)
+        _line("ДЕЙСТВИЕ", "",
+              "preflight WARN означает только невозможность проверки, не отсутствие; "
+              "агент: проверить интерактивную сессию ОСНОВНОГО агента "
+              "(не subagent/remote headless); AskUserQuestion — встроенный resident "
+              "tool, ToolSearch не нужен; проверить его в списке инструментов и "
+              "подтвердить, что "
+              "askUserQuestionAutoResolutionEnabled выключен; если инструмент "
+              "недоступен или настройка не подтверждена — остановиться; "
+              "текстовый fallback запрещён")
     else:
         line = _line(_OK, "харнесс", detail)
     return line or ""
