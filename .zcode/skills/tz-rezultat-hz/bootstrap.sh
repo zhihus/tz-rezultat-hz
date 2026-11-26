@@ -29,6 +29,17 @@
 # ============================================================
 set -euo pipefail
 
+# --- платформенный предохранитель ---
+# Только Linux: на Windows (Git Bash/MSYS/Cygwin) Linux-архив даёт
+# Unix-раскладку (python/bin/python3, *.so) без python.exe.
+case "$(uname -s)" in
+    Linux) : ;;
+    *)
+        echo "[FAIL] bootstrap.sh — только Linux (обнаружено: $(uname -s))." >&2
+        echo "       На Windows запустите bootstrap.ps1." >&2
+        exit 1 ;;
+esac
+
 PLAN=""
 MODE=""
 for arg in "$@"; do

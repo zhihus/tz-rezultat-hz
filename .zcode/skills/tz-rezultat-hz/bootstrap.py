@@ -725,6 +725,17 @@ def _isolate(win, py_base, target, ver_dir):
     версионном каталоге (кандидате при сборке; после замещения venv
     ремонтируется — см. _repair_venv)."""
     if target == "win-x64":
+        # Детектор чужой платформенной раскладки: на win-x64 обязан быть
+        # python.exe. Unix-раскладка (bin/python3) означает, что распакован
+        # не тот архив (Linux) — молчаливая подмена дала бы необъяснимые
+        # «нет интерпретатора».
+        if not os.path.isfile(os.path.join(py_base, "python.exe")):
+            hint = (" — похоже, распакован Linux-архив"
+                    if os.path.isfile(os.path.join(py_base, "bin", "python3"))
+                    else "")
+            raise RuntimeError(
+                "неверная платформенная раскладка: нет python.exe в %s%s"
+                % (py_base, hint))
         pth = os.path.join(py_base, "python311._pth")
         lines = ["Lib", "DLLs", "Lib\\site-packages",
                  "Lib\\site-packages\\win32", "Lib\\site-packages\\win32\\lib"]

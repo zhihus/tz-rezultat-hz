@@ -124,7 +124,7 @@ Write-Host "  SHA-256 сверен с пином"
 # Архив PBS содержит в корне папку python/, поэтому распаковка в
 # $BuildDir даёт $BuildDir/python/python.exe (как в bootstrap.py).
 # tar берём из System32 (bsdtar): tar из PATH может оказаться MSYS/Git-Bash
-# и не понять путь «C:\…» («Cannot connect to C: resolve failed»).
+# и не понять диск-буквенный путь (падает с «Cannot connect to …»).
 $TarExe = Join-Path $env:SystemRoot "System32\tar.exe"
 if (-not (Test-Path $TarExe)) { $TarExe = "tar" }
 if (Test-Path $BuildDir) {

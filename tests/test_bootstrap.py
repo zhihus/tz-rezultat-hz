@@ -449,6 +449,62 @@ run("net-fail: main() без traceback", "Traceback" not in out)
 run("net-fail: прежний манифест цел",
     bootstrap.read_manifest(root) == prior)
 
+# --- bootstrap.sh: платформенный предохранитель (только Linux) --------------
+BASH = shutil.which("bash")
+SH_CANON = os.path.join(SKILL_DIR, "bootstrap.sh")
+
+
+def _run_sh(stub, args=()):
+    """Копия bootstrap.sh в temp + PATH-заглушки (uname/curl): рабочий
+    скилл и действующий runtime не затрагиваются."""
+    run_dir = tempfile.mkdtemp(prefix="bsh-run-")
+    sh = os.path.join(run_dir, "bootstrap.sh")
+    with open(SH_CANON, "rb") as f:
+        data = f.read()
+    with open(sh, "wb") as f:
+        f.write(data)
+    comp = os.path.join(SKILL_DIR, "components.ru.md")
+    if os.path.isfile(comp):  # нужен режиму --plan (show_plan читает его)
+        shutil.copy2(comp, os.path.join(run_dir, "components.ru.md"))
+    stub_dir = tempfile.mkdtemp(prefix="bsh-stub-")
+    for name, body in stub.items():
+        p = os.path.join(stub_dir, name)
+        with open(p, "w", newline="\n") as f:
+            f.write(body)
+        os.chmod(p, 0o755)
+    env = dict(os.environ)
+    env["PATH"] = stub_dir + os.pathsep + os.environ.get("PATH", "")
+    r = subprocess.run([BASH, sh, *args], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=env)
+    return r, (r.stdout or "") + (r.stderr or "")
+
+
+if BASH:
+    r_win, out_win = _run_sh({"uname": "#!/bin/sh\necho MINGW64_NT-10.0\n"})
+    run("sh: вне Linux → отказ (код ≠ 0)", r_win.returncode != 0)
+    run("sh: вне Linux → понятное сообщение",
+        "только Linux" in out_win and "bootstrap.ps1" in out_win)
+
+    r_lin, out_lin = _run_sh({"uname": "#!/bin/sh\necho Linux\n",
+                              "curl": "#!/bin/sh\nexit 1\n"}, args=["--plan"])
+    run("sh: на Linux предохранитель не срабатывает",
+        "только Linux" not in out_lin and r_lin.returncode == 0)
+else:
+    print("[SKIP] bootstrap.sh guard: bash отсутствует")
+
+# --- bootstrap.py: детектор чужой платформенной раскладки (§5) ---------------
+vroot = tempfile.mkdtemp(prefix="bsl-layout-")
+py_base = os.path.join(vroot, "python")
+os.makedirs(os.path.join(py_base, "bin"))
+open(os.path.join(py_base, "bin", "python3"), "w").close()  # Unix-раскладка
+try:
+    bootstrap._isolate(win=True, py_base=py_base, target="win-x64",
+                       ver_dir=vroot)
+    detected = False
+except Exception as e:
+    detected = "python.exe" in str(e)
+run("py: Unix-раскладка на win-x64 → диагностическая ошибка", detected)
+
 fails = [n for n, ok in results if not ok]
 print(f"\nИТОГ: {'PASS' if not fails else 'FAIL'} ({len(results) - len(fails)}/{len(results)})")
 if fails:
