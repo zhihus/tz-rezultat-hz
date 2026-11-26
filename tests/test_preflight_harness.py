@@ -39,6 +39,9 @@ results.append(run(
     "AskUserQuestion" in zcode and "ОСНОВНОГО агента" in zcode
     and "не отсутствие" in zcode))
 results.append(run(
+    "ZCode resident tool does not require ToolSearch",
+    "resident tool" in zcode and "ToolSearch не нужен" in zcode))
+results.append(run(
     "ZCode blocks text fallback and requires auto-resolution OFF",
     "текстовый fallback запрещён" in zcode
     and "askUserQuestionAutoResolutionEnabled выключен" in zcode))
