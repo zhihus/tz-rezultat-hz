@@ -8,7 +8,8 @@ mandatory for the main agent; subagents must not ask the user.
 - The exact tool name is `AskUserQuestion` (case-sensitive).
 - Check the active **main-agent** session tool list immediately before the
   first question batch. A standalone `preflight.py` process cannot inspect
-  that live tool pool and must not claim that the tool is available.
+  that live tool pool and must not claim that the tool is available. Its
+  `[WARN]` means **unverified**, not that the tool is missing.
 - If the tool is absent, unavailable, denied, or rejects the input schema,
   stop and report the failure. Do not send the same questions as ordinary
   assistant text and do not proceed as if answers had been collected.
