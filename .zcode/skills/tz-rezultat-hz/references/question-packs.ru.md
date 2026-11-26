@@ -9,7 +9,10 @@ below becomes one `AskUserQuestion` question. Preserve its wording and stated
 options. Each call contains at most four questions; larger packs are split
 into consecutive calls in the same order, without intervening analysis or work.
 Free-text items use the designated text-entry option and the UI's automatic
-free-text/Other input; do not omit the required 2–4 options or invent defaults.
+free-text/Other input. A pure free-text item with no choices (for example,
+§2 п.4) uses «Указать значение» and «Не могу указать сейчас» as the two
+schema-required options; the latter stops the workflow. Do not omit the required
+2–4 options or invent defaults.
 
 
 ONE CONTENT INTERVIEW (Rule 4 of SKILL.md): model→user questions are §1 (Step 1) and §2 (Step 2) only. After Step 2 — zero questions; §3 and §3а are reactions to the user's own actions, not model initiative.
