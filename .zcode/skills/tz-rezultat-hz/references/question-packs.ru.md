@@ -14,6 +14,10 @@ free-text/Other input. A pure free-text item with no choices (for example,
 schema-required options; the latter stops the workflow. Do not omit the required
 2–4 options or invent defaults.
 
+For Self-Grill, a logical round with more than four questions is split into
+consecutive ZCode sub-batches. Collect all answers in that round before
+starting another round; do not treat each sub-batch as a new round.
+
 
 ONE CONTENT INTERVIEW (Rule 4 of SKILL.md): model→user questions are §1 (Step 1) and §2 (Step 2) only. After Step 2 — zero questions; §3 and §3а are reactions to the user's own actions, not model initiative.
 
