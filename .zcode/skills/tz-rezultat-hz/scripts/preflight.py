@@ -56,7 +56,7 @@ def check_harness(harness):
         # merely because the user selected --harness zcode.
         line = _line(_WARN, "харнесс", detail)
         _line("ДЕЙСТВИЕ", "",
-              "preflight WARN означает только невозможность проверки, не отсутствие; " 
+              "preflight WARN означает только невозможность проверки, не отсутствие; "
               "агент: проверить интерактивную сессию ОСНОВНОГО агента "
               "(не subagent/remote headless); AskUserQuestion — встроенный resident "
               "tool, ToolSearch не нужен; проверить его в списке инструментов и "
