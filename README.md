@@ -135,3 +135,7 @@ upstream commit, MIT). Licenses and provenance — [`THIRD-PARTY.md`](THIRD-PART
 
 MIT — see [`LICENSE`](LICENSE). Third-party components and their
 licenses are listed in [`THIRD-PARTY.md`](THIRD-PARTY.md).
+
+## Development and publication
+
+This repository is an independent product. Local development may use multiple branches and local-only supporting files; only reviewed, distilled product changes are published from `main`. Customer materials and personal data must never enter the public repository. See [project boundaries and publication rules](docs/project-boundaries-and-publication.md) and [AGENTS.md](AGENTS.md).
