@@ -719,7 +719,12 @@ def check_filled_placeholders(doc, rep):
 def _verify_report_enabled(template_path):
     """settings.yaml (cwd, рядом с шаблоном, уровень выше): verify_report.
     По умолчанию off — отчёт проверки одноразовый, в stdout."""
-    import yaml
+    try:
+        import yaml
+    except ImportError:
+        print("[FAIL] PyYAML не установлен — обязательная зависимость "
+              "конвейера; запустите Bootstrap --rebuild")
+        sys.exit(1)
     cands = [os.path.join(os.getcwd(), "settings.yaml"),
              os.path.join(os.path.dirname(os.path.abspath(template_path)), "settings.yaml"),
              os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(template_path))),

@@ -8,6 +8,30 @@ import os
 import re
 import sys
 
+# --- Обязательные импорты рантайма (единый источник, не дублировать) -------
+# Модули, которые конвейер импортирует жёстко. bootstrap.py проверяет их
+# наличие в кандидате и в активном рантайме, preflight.py — в активном.
+# yaml обязателен: PyYAML — прямая пиновая зависимость (requirements.txt),
+# его жёстко импортируют preflight/find_config/verify_template/init_project/
+# extract_spec. Win-x64 дополнительно требует pywin32: win32com.client и
+# pythoncom (Word COM — verify_template.py рендерит через Word COM).
+REQUIRED_IMPORTS = ("docx", "lxml", "pymupdf", "yaml")
+REQUIRED_IMPORTS_WIN = ("win32com.client", "pythoncom")
+
+
+def required_imports_probe(target=None):
+    """Строка для `python -c` — пробный импорт всех обязательных модулей.
+    target=None → учитывается текущая платформа (win-x64 → +win32com)."""
+    if target is None:
+        import platform
+        sysname, machine = platform.system(), platform.machine()
+        if sysname == "Windows" and machine in ("AMD64", "x86_64"):
+            target = "win-x64"
+    mods = list(REQUIRED_IMPORTS)
+    if target == "win-x64":
+        mods += list(REQUIRED_IMPORTS_WIN)
+    return "import " + ", ".join(mods)
+
 
 def setup_utf8_stdout():
     """stdout в UTF-8 (консоль Windows по умолчанию CP866 — кириллица

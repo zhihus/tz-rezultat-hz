@@ -20,8 +20,9 @@ import sys
 try:
     from yaml import safe_dump, safe_load
 except ImportError:
-    print("[FAIL] pyyaml не установлен — pip install pyyaml (спросить пользователя)")
-    sys.exit(0)
+    print("[FAIL] PyYAML не установлен — обязательная зависимость конвейера; "
+          "запустите Bootstrap --rebuild")
+    sys.exit(1)
 
 
 def _line(status, msg):

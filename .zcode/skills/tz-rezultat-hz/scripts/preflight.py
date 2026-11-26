@@ -26,6 +26,13 @@ import urllib.request
 
 _SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Обязательные импорты рантайма — единый источник (scripts/tz_common.py,
+# рядом с preflight.py в каноне и в зеркале конвейер/).
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from tz_common import required_imports_probe  # noqa: E402
+
 _OK = "OK  "
 _FAIL = "FAIL"
 _WARN = "WARN"
@@ -71,13 +78,13 @@ def check_runtime():
               "bootstrap.ps1 -Full (Windows) / bootstrap.sh --full (Linux)")
         return
     # Импорты проверяем в АКТИВНОМ интерпретаторе (не в host-питоне).
-    mods = "import docx, lxml, pymupdf"
-    if bootstrap._target() == "win-x64":
-        mods += ", win32com.client"
+    mods = required_imports_probe(bootstrap._target())
     try:
         r = subprocess.run([py, "-c", mods], capture_output=True, text=True, timeout=60)
         if r.returncode != 0:
-            _line(_FAIL, "runtime", "импорты не прошли в активном интерпретаторе")
+            _line(_FAIL, "runtime",
+                  "обязательные зависимости не установлены — импорт не прошёл "
+                  "(нет PyYAML/сторонней библиотеки)")
             _line("ДЕЙСТВИЕ", "", "агент: запустите Bootstrap --rebuild")
             return
     except Exception as e:
@@ -277,7 +284,13 @@ def check_write(work):
 
 
 def check_projects(work):
-    from yaml import safe_load  # pyyaml идёт с lxml-окружением редко — защита ниже
+    try:
+        from yaml import safe_load
+    except ImportError:
+        _line(_FAIL, "проект", "PyYAML не установлен — обязательная "
+              "зависимость конвейера")
+        _line("ДЕЙСТВИЕ", "", "агент: запустите Bootstrap --rebuild")
+        return
     # манифест рядом с work ИЛИ в work/projects/ (обе раскладки встречаются)
     path = next((p for p in (os.path.join(work, "projects.yaml"),
                              os.path.join(work, "projects", "projects.yaml"))

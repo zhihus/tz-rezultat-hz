@@ -18,6 +18,21 @@ import sys
 _MARKERS = ("v8project.yaml", "v8project.local.yaml")
 
 
+def _require_yaml(where):
+    """PyYAML — обязательная зависимость конвейера (scripts/requirements.txt;
+    жёстко импортируется preflight/find_config/verify_template/init_project/
+    extract_spec). Отсутствие → понятная диагностика и ненулевой код, без
+    необработанного traceback."""
+    try:
+        import yaml
+        return yaml
+    except ImportError:
+        print("[FAIL] PyYAML не установлен — обязательная зависимость "
+              "конвейера (%s)." % where)
+        print("[ДЕЙСТВИЕ] агент: запустите Bootstrap --rebuild")
+        sys.exit(1)
+
+
 def _derive_main_ext(hits):
     """Каталоги main (cf) и ext (cfe) из находок — та же логика, что в
     _persist (каталог узнаётся по компоненту пути «cf»/«cfe», а не по
@@ -62,7 +77,7 @@ def _v8project_yaml(main, ext):
 
 def _v8project_paths_match(text, main, ext):
     """Совпадают ли пути в существующем v8project.yaml с ожидаемыми."""
-    from yaml import safe_load
+    safe_load = _require_yaml("сверка v8project.yaml").safe_load
     try:
         data = safe_load(text) or {}
     except Exception:
@@ -157,7 +172,8 @@ def _persist(work, name, hits):
     проекте, а не в переписке."""
     if not work:
         return
-    from yaml import safe_load, safe_dump
+    _yaml = _require_yaml("фиксация связки в projects.yaml")
+    safe_load, safe_dump = _yaml.safe_load, _yaml.safe_dump
     # манифест рядом с work ИЛИ в work/projects/ (обе раскладки)
     manifest = next((p for p in (os.path.join(work, "projects.yaml"),
                                  os.path.join(work, "projects", "projects.yaml"))

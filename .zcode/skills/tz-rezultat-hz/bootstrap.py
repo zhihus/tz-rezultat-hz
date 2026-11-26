@@ -84,6 +84,14 @@ import tempfile
 import time
 import urllib.request
 
+# Обязательные импорты рантайма — единый источник (scripts/tz_common.py):
+# validate_candidate и check_active проверяют по нему наличие зависимостей.
+_SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from tz_common import required_imports_probe  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # ПИНЫ ВНЕШНИХ КОМПОНЕНТОВ (фиксированы в исходниках — источник подлинности).
 # Вычисленный после загрузки хэш СРАВНИВАЕТСЯ с пином; сам по себе он
@@ -1005,9 +1013,7 @@ def validate_candidate(root, target, mode="full", ver_dir=None):
         ver = (v.stdout + v.stderr).strip()
         if PY_VERSION not in ver:
             return False, "неверная версия Python: %s" % ver
-        mods = "import docx, lxml, pymupdf"
-        if target == "win-x64":
-            mods += ", win32com.client"
+        mods = required_imports_probe(target)
         r = subprocess.run([py, "-c", mods], capture_output=True, text=True, timeout=120)
         if r.returncode != 0:
             return False, "импорты не прошли: %s" % (r.stderr or "")[:120]
@@ -1059,6 +1065,11 @@ def check_active(root):
         v = subprocess.run([py, "--version"], capture_output=True, text=True, timeout=60)
         if PY_VERSION not in (v.stdout + v.stderr):
             return False, "версия Python не та"
+        r = subprocess.run([py, "-c", required_imports_probe(_target())],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            return False, ("обязательные импорты не прошли: %s"
+                           % ((r.stderr or "").strip()[:120]))
         fa = os.path.join(root, (m.get("active") or {}).get("python"), "format-agent")
         vok, vdetail = verify_format_agent(fa, ignore_pycache=True)
         if vok:
