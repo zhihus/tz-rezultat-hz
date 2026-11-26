@@ -38,7 +38,7 @@ def _line(status, name, detail=""):
 
 
 _HARNESS = {
-    "zcode": "ZCode выбран; AskUserQuestion и documents:visual-judge проверяются в активной сессии",
+    "zcode": "ZCode выбран; AskUserQuestion и documents:visual-judge требуют проверки в активной сессии",
     "claude-code": "Claude Code — вопросы инструментом, визуальная приёмка постранично",
     "codex": "Codex — вопросы ТОЛЬКО текстом в конце ответа, приёмка постранично",
     "other": "другой: вопросы ТОЛЬКО текстом в конце ответа, визуальная приёмка постранично",
