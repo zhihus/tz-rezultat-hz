@@ -60,6 +60,10 @@ Additional schema constraints:
 - A single call must never contain more than four questions.
 - Split a larger fixed pack into consecutive batches of at most four, preserving
   the original order.
+- Self-Grill rounds are logical groups, not individual API calls. If one
+  round contains more than four questions, split it into consecutive
+  sub-batches; finish all sub-batches and collect all their answers before
+  starting the next round. This transport split does not create extra rounds.
 - Ask the next batch immediately after receiving the previous batch's answers:
   no analysis, research, file edits, unrelated tool calls or progress to another
   step between batches.
