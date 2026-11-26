@@ -22,14 +22,14 @@ Every question must contain:
 
 | Field | Requirement |
 |---|---|
-| `question` | Complete, specific question; phrase it as a question and end with `?`. |
+| `question` | Complete and specific. Prefer a question mark; fixed question-pack wording and punctuation remain verbatim. |
 | `header` | Short chip label, maximum 12 characters. |
 | `options` | 2–4 distinct options. Each has `label` and `description`; labels must be unique. |
 | `multiSelect` | Boolean. Use `false` unless the choices are independently selectable. |
 
 Additional schema constraints:
 
-- Option labels should be concise (1–5 words); descriptions explain the choice.
+- Option labels should be concise (1–5 words); descriptions explain the choice. If the pack has no description, add a short neutral explanation without changing the label.
 - Do not add an `Other` option: ZCode supplies it automatically.
 - Do not duplicate question texts or option labels within a question.
 - Do not add unsupported fields. The input schema is strict.
