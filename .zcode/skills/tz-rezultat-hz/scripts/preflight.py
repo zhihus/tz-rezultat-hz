@@ -56,6 +56,7 @@ def check_harness(harness):
         # merely because the user selected --harness zcode.
         line = _line(_WARN, "харнесс", detail)
         _line("ДЕЙСТВИЕ", "",
+              "preflight WARN означает только невозможность проверки, не отсутствие; " 
               "агент: до первого вопроса проверить AskUserQuestion в списке "
               "инструментов ОСНОВНОГО агента и подтвердить, что "
               "askUserQuestionAutoResolutionEnabled выключен; если инструмент "
