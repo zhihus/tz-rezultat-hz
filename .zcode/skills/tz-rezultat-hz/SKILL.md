@@ -20,9 +20,9 @@ only when the corresponding step is reached.
 | `references/unica-setup.ru.md` | Unica (1C MCP) launch chain, failure diagnostics and call discipline. | Step 1; re-read on any Unica failure |
 | `references/document-model.ru.md` | Document model and parsing methodology. | Step 4 |
 | `references/document-model.ru.yaml` | Machine-readable 54-element catalog; scripts load by filename. Do not rename. | Step 4 / detection work |
-| `references/element-parsing-protocol.ru.md` | Protocol for extending parsing to catalog elements. | When extending extraction |
+| `references/element-parsing-protocol.ru.md` | Protocol for extending parsing to catalog elements, including elements absent from samples. | When extending extraction |
 | `references/tech-tz-map.ru.md` and `references/obj-map.schema.json` | Object-map method, technical-ТЗ section canon and schema. | Step 6 and technical Step 7 |
-| `references/oneshots-tech.ru.md` and `references/writer-profiles.ru.md` | Technical writing patterns and mini-profile format. | Step 7 |
+| `references/oneshots-tech.ru.md` and `references/writer-profiles.ru.md` | Hard verbatim patterns O1–O10 + user-<N>; mini-profile format and technical requisite style §4. | Step 7 |
 
 Scripts are in `scripts/` next to this file; paths are relative to the skill
 folder. Do not duplicate reference content here.
