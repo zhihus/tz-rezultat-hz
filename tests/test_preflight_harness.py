@@ -33,7 +33,7 @@ results = []
 zcode = capture("zcode")
 results.append(run(
     "ZCode is WARN, never a false OK",
-    "[WARN] харнесс:" in zcode and "[OK] харнесс:" not in zcode))
+    "[WARN] харнесс:" in zcode and "[OK  ] харнесс:" not in zcode))
 results.append(run(
     "ZCode requires live main-agent tool verification",
     "AskUserQuestion" in zcode and "ОСНОВНОГО агента" in zcode))
@@ -45,12 +45,12 @@ results.append(run(
 claude = capture("claude-code")
 results.append(run(
     "Claude Code retains its interactive-tool status",
-    "[OK] харнесс:" in claude and "вопросы инструментом" in claude))
+    "[OK  ] харнесс:" in claude and "вопросы инструментом" in claude))
 
 codex = capture("codex")
 results.append(run(
     "Codex retains its documented text-question route",
-    "[OK] харнесс:" in codex and "вопросы ТОЛЬКО текстом" in codex))
+    "[OK  ] харнесс:" in codex and "вопросы ТОЛЬКО текстом" in codex))
 
 unknown = capture("unknown")
 results.append(run(
