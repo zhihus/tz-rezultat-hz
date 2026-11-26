@@ -11,7 +11,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.abspath(os.path.join(
     HERE, "..", ".zcode", "skills", "tz-rezultat-hz"))
-sys.path.insert(0, SKILL_DIR)
+sys.path.insert(0, os.path.join(SKILL_DIR, "scripts"))
 
 import preflight  # noqa: E402
 
