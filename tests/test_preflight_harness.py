@@ -36,7 +36,8 @@ results.append(run(
     "[WARN] харнесс:" in zcode and "[OK  ] харнесс:" not in zcode))
 results.append(run(
     "ZCode requires live main-agent tool verification",
-    "AskUserQuestion" in zcode and "ОСНОВНОГО агента" in zcode))
+    "AskUserQuestion" in zcode and "ОСНОВНОГО агента" in zcode
+    and "не отсутствие" in zcode))
 results.append(run(
     "ZCode blocks text fallback and requires auto-resolution OFF",
     "текстовый fallback запрещён" in zcode
