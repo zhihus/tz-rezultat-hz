@@ -6,10 +6,18 @@ mandatory for the main agent; subagents must not ask the user.
 ## Tool availability
 
 - The exact tool name is `AskUserQuestion` (case-sensitive).
+- ZCode registers it as a built-in resident tool, including when ToolSearch is
+  enabled. It should be present in the main interactive session without a
+  ToolSearch lookup; do not treat it as an ordinary deferred tool.
 - Check the active **main-agent** session tool list immediately before the
   first question batch. A standalone `preflight.py` process cannot inspect
   that live tool pool and must not claim that the tool is available. Its
   `[WARN]` means **unverified**, not that the tool is missing.
+- `AskUserQuestion` requires a user-interaction channel. ZCode may disable it
+  in non-interactive sessions or remote channels where no user can answer.
+  Confirm that the session is interactive and is the main agent, not a
+  subagent/workflow actor. If the tool is missing in that context, report a
+  session/tool-policy problem; do not try ToolSearch as a workaround.
 - If the tool is absent, unavailable, denied, or rejects the input schema,
   stop and report the failure. Do not send the same questions as ordinary
   assistant text and do not proceed as if answers had been collected.
@@ -95,4 +103,6 @@ model to continue using its best judgment. That behavior conflicts with Rule 6
 ## Source references
 
 - AskUserQuestion schema: https://github.com/zai-org/ZCode/blob/main/apps/zcode-cli/packages/contracts/src/tools/ask-user-question.ts
+- Tool registration and ToolSearch resident set: https://github.com/zai-org/ZCode/blob/main/apps/zcode-cli/docs/design/v2/tool/19-tool-search.md
+- Non-interactive/session behavior and user-interaction contract: https://github.com/zai-org/ZCode/blob/main/apps/zcode-cli/docs/design/v2/tool/06-ask-user-question.md
 - Five-minute auto-resolution behavior and setting: https://github.com/zai-org/ZCode/blob/main/docs/ask-user-question-auto-resolution.md
