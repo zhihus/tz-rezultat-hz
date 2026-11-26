@@ -2,6 +2,16 @@
 
 Source of truth for question wording. Re-read the relevant section before EVERY pack. Changing wording, order, or options is FORBIDDEN (defects E-03, E-21, E-24, E-26, E-38). Question text and options below are RUSSIAN user-facing content — never translate or paraphrase.
 
+## ZCode representation
+
+Before every ZCode call, follow `references/zcode-harness.ru.md`. Each item
+below becomes one `AskUserQuestion` question. Preserve its wording and stated
+options. Each call contains at most four questions; larger packs are split
+into consecutive calls in the same order, without intervening analysis or work.
+Free-text items use the designated text-entry option and the UI's automatic
+free-text/Other input; do not omit the required 2–4 options or invent defaults.
+
+
 ONE CONTENT INTERVIEW (Rule 4 of SKILL.md): model→user questions are §1 (Step 1) and §2 (Step 2) only. After Step 2 — zero questions; §3 and §3а are reactions to the user's own actions, not model initiative.
 
 ## §1. Step 1 — preflight pack (one call, after the environment report)
