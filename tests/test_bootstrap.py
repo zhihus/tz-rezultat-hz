@@ -10,7 +10,10 @@
   * мёртвый замок → stale БЕЗ автоудаления (ручное удаление);
   * нечитаемый замок → отказ;
   * SHA-256 ≠ пин → отказ сборки (действующий рантайм не тронут);
-  * сбой записи манифеста → прежний манифест цел.
+  * сбой записи манифеста → прежний манифест цел;
+  * сетевой отказ загрузки → build_candidate (False, err) без исключения,
+    main() → exit 1 с [FAIL]/[ОСТАНОВ] (без traceback), частичный .part-архив
+    не считается готовым (повторная попытка перекачивает), прежний манифест цел.
 Позитивы:
   * свежий захват / повторный вход / релиз;
   * атомарная запись манифеста; fallback runtime_root в кэш ОС;
@@ -31,7 +34,9 @@
 Запуск: `python tests/test_bootstrap.py` (или `py -3 tests/test_bootstrap.py`
 на Windows). Выход 0 — все тесты прошли.
 """
+import contextlib
 import hashlib
+import io
 import json
 import os
 import platform
@@ -374,6 +379,75 @@ try:
     run("main: stale lock → exit 3", code == 3)
 finally:
     sys.argv = argv
+
+# --- сетевой отказ: build_candidate → (False, err) без исключения ---
+# _download имитирует срыв сети: оставляет .part-черновик, финальный архив
+# НЕ создаёт. Ожидаемые типы исключений: RuntimeError (curl) и OSError
+# (subprocess.run / os.replace). Провал НЕ трогает действующий рантайм.
+target = bootstrap._target()
+root = fresh_root()
+real_download = bootstrap._download
+def _boom_download(url, dst):
+    with open(dst + ".part", "wb") as f:
+        f.write(b"partial")
+    raise RuntimeError("curl: (7) Failed to connect (simulated)")
+bootstrap._download = _boom_download
+try:
+    try:
+        ok, detail = bootstrap.build_candidate(root, target, force=True,
+                                               mode="no-grilling")
+        raised = False
+    except Exception:
+        raised = True
+        ok, detail = None, None
+finally:
+    bootstrap._download = real_download
+run("net-fail: build_candidate → (False, err), без исключения",
+    (not ok) and (not raised) and detail is not None
+    and detail.startswith("скачивание Python"))
+# частичный архив: финальный архив НЕ создан → .part-черновик не считается
+# готовым, следующая попытка перекачает
+arc = os.path.join(root, ".staging", bootstrap.PINS[target]["archive"])
+run("net-fail: финальный архив не создан (частичный .part не 'готов')",
+    not os.path.isfile(arc))
+# повторная попытка: _download вызывается снова (архив не считается готовым)
+calls = []
+def _count_download(url, dst):
+    calls.append(1)
+    raise RuntimeError("curl: (7) still down (simulated)")
+bootstrap._download = _count_download
+try:
+    bootstrap.build_candidate(root, target, force=False, mode="no-grilling")
+finally:
+    bootstrap._download = real_download
+run("net-fail: повторная попытка снова ходит за архивом", len(calls) == 1)
+
+# --- сетевой отказ end-to-end: main() → exit 1, [FAIL]/[ОСТАНОВ], без traceback ---
+root = fresh_root()
+os.makedirs(root, exist_ok=True)
+prior = {"schema": 2, "active": {"python": bootstrap.PY_DIRNAME}}
+bootstrap.write_manifest_atomic(root, prior)
+real_stage_gr = bootstrap.stage_grilling
+bootstrap.stage_grilling = lambda r: (True, "grilling: staged (test)",
+                                       os.path.join(r, ".staging", "grilling-src"))
+bootstrap._download = _boom_download
+buf = io.StringIO()
+argv = sys.argv
+try:
+    sys.argv = ["bootstrap.py", "--full", "--rebuild", "--root", root]
+    with contextlib.redirect_stdout(buf):
+        code = bootstrap.main()
+finally:
+    sys.argv = argv
+    bootstrap.stage_grilling = real_stage_gr
+    bootstrap._download = real_download
+out = buf.getvalue()
+run("net-fail: main() → exit 1", code == 1)
+run("net-fail: main() печатает [FAIL] и [ОСТАНОВ]",
+    "[FAIL]" in out and "[ОСТАНОВ]" in out)
+run("net-fail: main() без traceback", "Traceback" not in out)
+run("net-fail: прежний манифест цел",
+    bootstrap.read_manifest(root) == prior)
 
 fails = [n for n, ok in results if not ok]
 print(f"\nИТОГ: {'PASS' if not fails else 'FAIL'} ({len(results) - len(fails)}/{len(results)})")

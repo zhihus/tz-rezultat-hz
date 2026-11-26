@@ -919,7 +919,13 @@ def build_candidate(root, target, force=False, assume_python=False, mode="full")
     if not assume_python:
         if not os.path.isfile(arc) or force:
             print("  скачиваю %s …" % pin["archive"])
-            _download(_PBS_BASE + pin["archive"], arc)
+            try:
+                _download(_PBS_BASE + pin["archive"], arc)
+            except (RuntimeError, OSError) as e:
+                # Провал сети/диска на этапе загрузки — штатный отказ:
+                # действующий рантайм и манифест не тронуты (архив ещё не
+                # создан, .part-черновик не считается готовым).
+                return False, "скачивание Python: %s" % str(e)[:160]
         got = _sha256_file(arc)
         if got != pin["sha256"]:
             return False, ("SHA-256 не совпадает: получен %s, пин %s"
