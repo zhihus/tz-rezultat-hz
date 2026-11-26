@@ -45,9 +45,12 @@ Additional schema constraints:
   collect the user's text through the question's free-text/notes input or the
   automatically supplied `Other` input. Treat that text as the answer to the
   same question; do not create an extra question or invent a default.
-- If a pack item specifies fewer than two explicit choices, add only
-  semantically valid choices that preserve the original decision. Keep
-  arbitrary free text available through the automatically supplied input.
+- A pure free-text item with no explicit choice set (for example, the new-ТЗ
+  code question in §2 п.4) still needs two schema-valid options: «Указать
+  значение» (enter the value in the free-text/notes field) and «Не могу
+  указать сейчас» (the agent stops and waits; this is not permission to infer
+  or continue). Keep the automatic `Other` input available for arbitrary text.
+  Do not invent a default or a third decision.
 - Never invent a recommended option. Recommendations must remain exactly
   those stated in the question pack or supported by the samples.
 
@@ -72,7 +75,7 @@ after five minutes with an empty `answers` object, after which ZCode tells the
 model to continue using its best judgment. That behavior conflicts with Rule 6
 (no answer → stop).
 
-- The user must turn OFF «提问自动 продолжение» / `askUserQuestionAutoResolutionEnabled`
+- The user must turn OFF «提问自动继续» / `askUserQuestionAutoResolutionEnabled`
   in ZCode settings before the first question. The setting is under the
   Agent abilities / Behavior and tools settings group; wording may vary by
   localization.
@@ -83,3 +86,8 @@ model to continue using its best judgment. That behavior conflicts with Rule 6
   and use the exact stop wording from Rule 6.
 - Never interpret timeout, cancellation, decline, or empty answers as consent.
 
+
+## Source references
+
+- AskUserQuestion schema: https://github.com/zai-org/ZCode/blob/main/apps/zcode-cli/packages/contracts/src/tools/ask-user-question.ts
+- Five-minute auto-resolution behavior and setting: https://github.com/zai-org/ZCode/blob/main/docs/ask-user-question-auto-resolution.md
