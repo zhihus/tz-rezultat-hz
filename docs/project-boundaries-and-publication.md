@@ -11,10 +11,11 @@ optional for consumers.
 
 ## Local development
 
-Local development may use multiple branches and may contain experiments,
-temporary files, reports, helper scripts, local configuration, test data,
-customer-specific working material, and other supporting files. Their local
-presence does not make them part of the public product.
+All active development takes place on the `develop` branch; do not create
+or use feature branches for project changes. The working tree may contain
+experiments, temporary files, reports, helper scripts, local configuration,
+test data, customer-specific working material, and other supporting files.
+Their local presence does not make them part of the public product.
 
 Do not create private GitHub repositories or private mirrors for local work.
 Keep local-only materials on the developer's computer.
