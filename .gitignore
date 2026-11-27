@@ -12,6 +12,10 @@ portable/python/
 # Python-кэш
 __pycache__/
 
+# Локальная интеграция с Manifest/Todoing — не публиковать
+.manifest/
+.todoing/
+
 # Логи
 *.log
 
