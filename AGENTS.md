@@ -7,11 +7,14 @@ public releases.
 Do not adapt this project to another project's internal needs. Reuse by other
 projects is optional and must remain behind explicit contracts.
 
-Local work may use multiple branches and customer-specific or developer-only
-supporting files. Such files must remain local unless they are demonstrably
-part of the public product and have been safely replaced with synthetic
-examples. Only reviewed, distilled product changes are integrated into and
-pushed from the single public branch, `main`.
+All development and integration work is performed on the public `develop`
+branch. Do not commit or push changes directly to `main`. After a change is
+reviewed, validated, and approved for release, transfer it from `develop` to
+`main` through a reviewed pull request. `main` is the release branch.
+
+Local customer-specific or developer-only supporting files must remain local
+unless they are demonstrably part of the public product and have been safely
+replaced with synthetic examples.
 
 Never publish customer documents, real customer identifiers, personal data,
 local paths, secrets, local configuration, temporary files, reports, backups,

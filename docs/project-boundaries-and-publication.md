@@ -19,12 +19,15 @@ presence does not make them part of the public product.
 Do not create private GitHub repositories or private mirrors for local work.
 Keep local-only materials on the developer's computer.
 
-## Single publication branch
+## Development and release branches
 
-The sole public integration branch for this repository is `main`. Work may
-proceed in multiple local branches. Select and integrate approved changes into
-`main`, then push only `main`. Do not publish local working branches or
-create parallel public development lines without explicit user authorization.
+`develop` is the sole branch for active development and integration. All
+changes, including documentation, tests, and implementation, are made on
+`develop`. Do not commit or push directly to `main`.
+
+`main` is the release branch. After work on `develop` is reviewed, validated,
+and approved for release, transfer the approved changes from `develop` to
+`main` through a reviewed pull request. Do not bypass this review gate.
 
 ## Distilled public contents
 
