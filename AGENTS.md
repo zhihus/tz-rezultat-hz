@@ -7,10 +7,17 @@ public releases.
 Do not adapt this project to another project's internal needs. Reuse by other
 projects is optional and must remain behind explicit contracts.
 
-All development and integration work is performed on the public `develop`
-branch. Do not commit or push changes directly to `main`. After a change is
-reviewed, validated, and approved for release, transfer it from `develop` to
-`main` through a reviewed pull request. `main` is the release branch.
+Keep `main` unchanged as the existing baseline/release branch. All new work
+starts from `develop`, both locally and on GitHub. For each specification,
+feature, bug fix, or other independent change, create a dedicated working
+branch from the current `develop` (for example `spec/<name>`, `feature/<name>`,
+or `fix/<name>`). Do not develop new work directly on `main`.
+
+When a working branch is complete, reviewed, and validated, merge it back
+into `develop` through a pull request. Keep local and remote branch histories
+aligned; push working branches to GitHub when remote review or backup is
+needed. Do not merge or push anything into `main` unless the user explicitly
+requests a release transfer.
 
 Local customer-specific or developer-only supporting files must remain local
 unless they are demonstrably part of the public product and have been safely

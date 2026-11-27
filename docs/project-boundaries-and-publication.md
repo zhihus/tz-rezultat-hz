@@ -11,24 +11,31 @@ optional for consumers.
 
 ## Local development
 
-All active development takes place on the `develop` branch; do not create
-or use feature branches for project changes. The working tree may contain
-experiments, temporary files, reports, helper scripts, local configuration,
-test data, customer-specific working material, and other supporting files.
-Their local presence does not make them part of the public product.
+`develop` is the active development baseline both locally and on GitHub.
+Keep the existing `main` branch unchanged; it is not the starting point for
+new work. For each independent specification, feature, bug fix, or other
+change, create a dedicated working branch from the latest `develop` locally.
+Use clear prefixes such as `spec/<name>`, `feature/<name>`, and `fix/<name>`.
+The local branch must track its matching GitHub branch when published.
+
+The working tree may contain experiments, temporary files, reports, helper
+scripts, local configuration, test data, customer-specific working material,
+and other supporting files. Their local presence does not make them part of
+the public product.
 
 Do not create private GitHub repositories or private mirrors for local work.
 Keep local-only materials on the developer's computer.
 
 ## Development and release branches
 
-`develop` is the sole branch for active development and integration. All
-changes, including documentation, tests, and implementation, are made on
-`develop`. Do not commit or push directly to `main`.
+`develop` is the integration branch. Complete work on its dedicated branch,
+then merge it into `develop` only after review and validation. Keep the local
+`develop` branch synchronized with `origin/develop`.
 
-`main` is the release branch. After work on `develop` is reviewed, validated,
-and approved for release, transfer the approved changes from `develop` to
-`main` through a reviewed pull request. Do not bypass this review gate.
+`main` retains its current contents and is not updated as part of ordinary
+development. A transfer from `develop` to `main` is a separate release action
+and requires the user's explicit request and approval. Never merge into or
+push to `main` automatically.
 
 ## Distilled public contents
 

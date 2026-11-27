@@ -138,4 +138,4 @@ licenses are listed in [`THIRD-PARTY.md`](THIRD-PARTY.md).
 
 ## Development and publication
 
-This repository is an independent product. All development and integration work takes place on `develop`; `main` is reserved for reviewed, validated releases transferred through a pull request. Customer materials and personal data must never enter the public repository. See [project boundaries and publication rules](docs/project-boundaries-and-publication.md) and [AGENTS.md](AGENTS.md).
+This repository is an independent product. New work starts from `develop` in dedicated local and remote working branches, then merges back into `develop` after review and validation. The existing `main` branch remains unchanged unless the user explicitly requests a release transfer. Customer materials and personal data must never enter the public repository. See [project boundaries and publication rules](docs/project-boundaries-and-publication.md) and [AGENTS.md](AGENTS.md).
